@@ -4,7 +4,7 @@ Aplicación web autoalojada para gestionar códigos **QR** y etiquetas **NFC** c
 
 ## Stack
 
-- **Backend:** Node.js (≥18.13) + Express 4 + EJS
+- **Backend:** Node.js (≥22) + Express 4 + EJS
 - **Base de datos:** SQLite (better-sqlite3, modo WAL) — fichero único, sin dependencias externas
 - **QR:** librería `qrcode` (PNG de alta resolución y SVG vectorial)
 - **Seguridad:** Helmet (CSP), sesiones firmadas en SQLite, bcrypt, CSRF tokens, limitación de intentos de login, contraseñas WiFi cifradas con AES-256-GCM
@@ -16,6 +16,8 @@ npm install
 npm run create-admin          # usuario y contraseña del panel
 npm start                     # http://localhost:3000
 ```
+
+Requiere **Node.js ≥ 22** (mejor la LTS actual).
 
 En desarrollo: `npm run dev` (recarga automática). Tests: `npm test`.
 

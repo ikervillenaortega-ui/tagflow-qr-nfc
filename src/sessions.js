@@ -18,14 +18,16 @@ class SqliteSessionStore extends session.Store {
     this.touch = this.touch.bind(this);
   }
 
+  // Los callbacks pueden llegar como undefined (p. ej. req.session.destroy() sin
+  // callback, algo que MemoryStore tolera): se invocan solo si son funciones.
   get(sid, cb) {
     try {
       const row = this.db
         .prepare('SELECT data FROM sessions WHERE id = ? AND expires_at > ?')
         .get(sid, Date.now());
-      cb(null, row ? JSON.parse(row.data) : undefined);
+      if (typeof cb === 'function') cb(null, row ? JSON.parse(row.data) : undefined);
     } catch (err) {
-      cb(err);
+      if (typeof cb === 'function') cb(err);
     }
   }
 
@@ -37,18 +39,18 @@ class SqliteSessionStore extends session.Store {
            ON CONFLICT(id) DO UPDATE SET data = excluded.data, expires_at = excluded.expires_at`
         )
         .run(sid, JSON.stringify(data), Date.now() + this.ttlMs, Date.now());
-      cb(null);
+      if (typeof cb === 'function') cb(null);
     } catch (err) {
-      cb(err);
+      if (typeof cb === 'function') cb(err);
     }
   }
 
   destroy(sid, cb) {
     try {
       this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sid);
-      cb(null);
+      if (typeof cb === 'function') cb(null);
     } catch (err) {
-      cb(err);
+      if (typeof cb === 'function') cb(err);
     }
   }
 
@@ -57,9 +59,9 @@ class SqliteSessionStore extends session.Store {
       this.db
         .prepare('UPDATE sessions SET expires_at = ? WHERE id = ?')
         .run(Date.now() + this.ttlMs, sid);
-      cb(null);
+      if (typeof cb === 'function') cb(null);
     } catch (err) {
-      cb(err);
+      if (typeof cb === 'function') cb(err);
     }
   }
 }

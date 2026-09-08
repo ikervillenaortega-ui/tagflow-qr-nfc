@@ -187,7 +187,9 @@ test('flujo completo: login → crear tag URL → escaneo → editar a WiFi → 
   assert.equal(wifiPage.statusCode, 200);
   assert.match(wifiPage.body, /Red Restaurante/);
   assert.match(wifiPage.body, /clave-segura-123/);
-  assert.match(wifiPage.body, /iPhone \/ iPad/);
+  // Las instrucciones adaptadas al SO se generan en el cliente (public.js) a
+  // partir de data-os; el servidor marca el sistema operativo detectado.
+  assert.match(wifiPage.body, /data-os="ios"/);
   assert.equal(models.getTagById(id).escaneos, 2);
 
   // 8. Editar manteniendo la contraseña (campo en blanco)
