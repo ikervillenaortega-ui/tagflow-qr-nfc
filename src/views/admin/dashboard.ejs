@@ -1,0 +1,99 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1>Tags</h1>
+  <a class="btn btn-primary" href="/admin/tags/nuevo">+ Nuevo Tag</a>
+</section>
+
+<form method="get" action="/admin/tags" class="filters">
+  <input type="search" name="q" value="<%= filters.q %>" placeholder="Buscar por nombre o slug…">
+  <select name="tipo">
+    <option value="">Tipo: todos</option>
+    <option value="qr" <%= filters.tipo === 'qr' ? 'selected' : '' %>>QR</option>
+    <option value="nfc" <%= filters.tipo === 'nfc' ? 'selected' : '' %>>NFC</option>
+    <option value="ambos" <%= filters.tipo === 'ambos' ? 'selected' : '' %>>QR + NFC</option>
+  </select>
+  <select name="modo">
+    <option value="">Modo: todos</option>
+    <option value="url" <%= filters.modo === 'url' ? 'selected' : '' %>>URL</option>
+    <option value="wifi" <%= filters.modo === 'wifi' ? 'selected' : '' %>>WiFi</option>
+    <option value="desactivado" <%= filters.modo === 'desactivado' ? 'selected' : '' %>>Desactivado</option>
+  </select>
+  <select name="estado">
+    <option value="">Estado: todos</option>
+    <option value="activo" <%= filters.estado === 'activo' ? 'selected' : '' %>>Activo</option>
+    <option value="pausado" <%= filters.estado === 'pausado' ? 'selected' : '' %>>Pausado</option>
+  </select>
+  <button type="submit" class="btn">Filtrar</button>
+  <% if (filters.q || filters.tipo || filters.modo || filters.estado) { %>
+    <a class="link" href="/admin/tags">Limpiar</a>
+  <% } %>
+</form>
+
+<% if (list.rows.length === 0) { %>
+  <div class="empty">
+    <p>No hay Tags que coincidan con la búsqueda.</p>
+    <a class="btn btn-primary" href="/admin/tags/nuevo">Crear el primero</a>
+  </div>
+<% } else { %>
+<div class="table-wrap">
+<table class="tags-table">
+  <thead>
+    <tr>
+      <th>Tag</th>
+      <th>Soporte</th>
+      <th>Modo / destino</th>
+      <th>Estado</th>
+      <th class="num">Escaneos</th>
+      <th class="num">Modificado</th>
+      <th class="actions-col">Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% for (const tag of list.rows) { %>
+    <tr>
+      <td>
+        <a class="tag-name" href="/admin/tags/<%= tag.id %>"><%= tag.nombre %></a>
+        <div class="tag-slug">/t/<%= tag.slug %></div>
+      </td>
+      <td><span class="badge badge-tipo"><%= tag.tipo === 'ambos' ? 'QR + NFC' : tag.tipo.toUpperCase() %></span></td>
+      <td>
+        <span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : 'Desactivado') %></span>
+        <div class="tag-destino">
+          <% if (tag.modo === 'url') { %><%= tag.urlDestino %><% } else if (tag.modo === 'wifi') { %>WiFi: <strong><%= tag.wifiSsid %></strong><% } else { %>—<% } %>
+        </div>
+      </td>
+      <td>
+        <form method="post" action="/admin/tags/<%= tag.id %>/estado" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="estado-btn estado-<%= tag.estado %>" title="Cambiar estado"><%= tag.estado === 'activo' ? 'Activo' : 'Pausado' %></button>
+        </form>
+      </td>
+      <td class="num"><%= tag.escaneos %></td>
+      <td class="num"><%= fmtDate(tag.fechaActualizacion) %></td>
+      <td class="actions-col">
+        <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>">Ver</a>
+        <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
+        <form method="post" action="/admin/tags/<%= tag.id %>/eliminar" class="inline-form" data-confirm="¿Eliminar el tag «<%= tag.nombre %>»? Esta acción no se puede deshacer.">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+    <% } %>
+  </tbody>
+</table>
+</div>
+
+<% if (list.pages > 1) { %>
+<div class="pagination">
+  <% if (list.page > 1) { %>
+    <a class="btn btn-sm" href="?page=<%= list.page - 1 %>&q=<%= urlenc(filters.q) %>&tipo=<%= urlenc(filters.tipo) %>&modo=<%= urlenc(filters.modo) %>&estado=<%= urlenc(filters.estado) %>">← Anterior</a>
+  <% } %>
+  <span class="muted">Página <%= list.page %> de <%= list.pages %></span>
+  <% if (list.page < list.pages) { %>
+    <a class="btn btn-sm" href="?page=<%= list.page + 1 %>&q=<%= urlenc(filters.q) %>&tipo=<%= urlenc(filters.tipo) %>&modo=<%= urlenc(filters.modo) %>&estado=<%= urlenc(filters.estado) %>">Siguiente →</a>
+  <% } %>
+</div>
+<% } %>
+<% } %>
+<%- include('partials/footer') %>

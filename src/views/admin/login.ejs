@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acceso · <%= appName %></title>
+  <link rel="stylesheet" href="/css/admin.css?v=<%= v %>">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-logo"><%= appName %></div>
+    <h1>Panel de administración</h1>
+    <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+    <form method="post" action="/admin/login" class="login-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Usuario
+        <input type="text" name="username" autocomplete="username" required autofocus>
+      </label>
+      <label>Contraseña
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+    </form>
+    <p class="login-note"><a href="/">← Volver a la página pública</a></p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1><%= tag ? 'Editar Tag' : 'Nuevo Tag' %></h1>
+  <% if (tag) { %><a class="link" href="/admin/tags/<%= tag.id %>">← Volver al detalle</a><% } %>
+</section>
+
+<% if (errors.length > 0) { %>
+  <div class="flash error"><ul><% for (const e of errors) { %><li><%= e %></li><% } %></ul></div>
+<% } %>
+
+<form method="post" action="<%= tag ? '/admin/tags/' + tag.id : '/admin/tags' %>" class="tag-form" id="tag-form" data-mode="<%= tag ? 'edit' : 'create' %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <fieldset>
+    <legend>Identificación</legend>
+    <div class="form-grid">
+      <label>Nombre descriptivo *
+        <input type="text" name="nombre" required maxlength="120" value="<%= values ? values.nombre : (tag ? tag.nombre : '') %>" placeholder="Ej. Mesa 3 · Restaurante">
+      </label>
+      <label>Slug (opcional)
+        <input type="text" name="slug" maxlength="64" pattern="[A-Za-z0-9_-]{3,64}" value="<%= values ? values.slug : (tag ? tag.slug : '') %>" placeholder="Autogenerado si se deja vacío">
+        <small>La URL pública será /t/<strong><%= slugPreview %></strong></small>
+      </label>
+      <label>Tipo de soporte *
+        <select name="tipo">
+          <% const tipoSel = values ? values.tipo : (tag ? tag.tipo : 'qr'); %>
+          <option value="qr" <%= tipoSel === 'qr' ? 'selected' : '' %>>QR</option>
+          <option value="nfc" <%= tipoSel === 'nfc' ? 'selected' : '' %>>NFC</option>
+          <option value="ambos" <%= tipoSel === 'ambos' ? 'selected' : '' %>>QR + NFC (mismo destino)</option>
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Modo de destino</legend>
+    <div class="modo-cards">
+      <% const modoSel = values ? values.modo : (tag ? tag.modo : 'desactivado'); %>
+      <label class="modo-card">
+        <input type="radio" name="modo" value="url" <%= modoSel === 'url' ? 'checked' : '' %>>
+        <strong>URL</strong>
+        <span>Redirige al escanear a una web externa.</span>
+      </label>
+      <label class="modo-card">
+        <input type="radio" name="modo" value="wifi" <%= modoSel === 'wifi' ? 'checked' : '' %>>
+        <strong>WiFi</strong>
+        <span>Muestra los datos de la red y permite conectarse.</span>
+      </label>
+      <label class="modo-card">
+        <input type="radio" name="modo" value="desactivado" <%= modoSel === 'desactivado' ? 'checked' : '' %>>
+        <strong>Desactivado</strong>
+        <span>Página neutra: «aún no configurado».</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="field-url">
+    <legend>Redirección web</legend>
+    <label>URL de destino *
+      <input type="url" name="url_destino" value="<%= values ? values.url_destino : (tag ? tag.urlDestino : '') %>" placeholder="https://ejemplo.com/pagina">
+      <small>Debe empezar por http:// o https://. El cambio se aplica al instante, sin tocar el QR/NFC físico.</small>
+    </label>
+  </fieldset>
+
+  <fieldset class="field-wifi">
+    <legend>Red WiFi</legend>
+    <div class="form-grid">
+      <label>SSID (nombre de la red) *
+        <input type="text" name="wifi_ssid" maxlength="64" value="<%= values ? values.wifi_ssid : (tag ? tag.wifiSsid : '') %>" placeholder="MiRedWiFi">
+      </label>
+      <label>Contraseña
+        <input type="text" name="wifi_password" autocomplete="off" value="<%= values ? values.wifi_password : '' %>" placeholder="<%= tag ? 'Déjala en blanco para mantener la actual' : 'Mín. 8 caracteres (WPA)' %>">
+        <small>Se almacena cifrada (AES-256-GCM).</small>
+      </label>
+      <label>Tipo de seguridad *
+        <select name="wifi_seguridad">
+          <% const segSel = values ? values.wifi_seguridad : (tag ? tag.wifiSeguridad : 'WPA'); %>
+          <option value="WPA" <%= segSel === 'WPA' ? 'selected' : '' %>>WPA / WPA2 / WPA3</option>
+          <option value="WEP" <%= segSel === 'WEP' ? 'selected' : '' %>>WEP</option>
+          <option value="nopass" <%= segSel === 'nopass' ? 'selected' : '' %>>Sin contraseña (red abierta)</option>
+        </select>
+      </label>
+    </div>
+    <details>
+      <summary>Vista previa del payload WiFi</summary>
+      <code class="code-block" id="wifi-preview">WIFI:T:WPA;S:…;P:…;;</code>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>Estado</legend>
+    <label>Estado
+      <select name="estado">
+        <% const estSel = values ? values.estado : (tag ? tag.estado : 'activo'); %>
+        <option value="activo" <%= estSel === 'activo' ? 'selected' : '' %>>Activo (responde a los escaneos)</option>
+        <option value="pausado" <%= estSel === 'pausado' ? 'selected' : '' %>>Pausado (muestra «no configurado»)</option>
+      </select>
+    </label>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary"><%= tag ? 'Guardar cambios' : 'Crear Tag' %></button>
+    <a class="btn" href="<%= tag ? '/admin/tags/' + tag.id : '/admin/tags' %>">Cancelar</a>
+  </div>
+</form>
+<%- include('partials/footer') %>

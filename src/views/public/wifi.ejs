@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; color: #1c2333; display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
+    .card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: 24px; }
+    .icon { font-size: 40px; }
+    h1 { font-size: 20px; margin: 12px 0 4px; }
+    .sub { color: #64748b; margin: 0 0 16px; }
+    .ssid-box { display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+    .ssid { font-weight: 700; font-size: 18px; word-break: break-all; }
+    .badge { font-size: 11px; background: #e2e8f0; color: #475569; border-radius: 999px; padding: 2px 8px; }
+    .pw-row { display: flex; gap: 8px; margin-top: 12px; }
+    .pw { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 15px; word-break: break-all; }
+    button { background: #2563eb; color: #fff; border: 0; border-radius: 10px; padding: 0 14px; font-weight: 600; cursor: pointer; }
+    .steps { margin-top: 16px; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; background: #fbfcfe; }
+    .steps h2 { font-size: 13px; margin: 0 0 8px; color: #475569; text-transform: uppercase; letter-spacing: .3px; }
+    .steps ol { margin: 8px 0; padding-left: 20px; font-size: 14px; line-height: 1.6; }
+    .note { font-size: 12px; color: #94a3b8; margin-top: 16px; line-height: 1.5; }
+    .ok { display: none; color: #15803d; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f172a; color: #e2e8f0; }
+      .card { background: #1e293b; }
+      .ssid-box { background: #0f172a; border-color: #334155; }
+      .pw { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+      .steps { background: #16233b; border-color: #334155; }
+      .badge { background: #334155; color: #cbd5e1; }
+      .sub, .note { color: #94a3b8; }
+      .steps h2 { color: #cbd5e1; }
+    }
+  </style>
+</head>
+<body data-os="<%= os %>" data-has-pw="<%= wifi.seguridad !== 'nopass' ? 'true' : 'false' %>" data-ssid="<%= wifi.ssid %>">
+  <div class="card">
+    <div class="icon">📶</div>
+    <h1><%= wifi.ssid %></h1>
+    <p class="sub"><%= nombre ? nombre : 'Red WiFi' %> · <span class="badge"><%= wifi.seguridad === 'nopass' ? 'Red abierta' : 'Seguridad ' + wifi.seguridad %></span></p>
+    <div class="ssid-box"><span class="ssid"><%= wifi.ssid %></span></div>
+    <% if (wifi.seguridad !== 'nopass') { %>
+    <div class="pw-row">
+      <input class="pw" id="pw" type="text" value="<%= wifi.password %>" readonly>
+      <button type="button" id="copy-btn">Copiar</button>
+    </div>
+    <p class="ok" id="copied">✓ Contraseña copiada</p>
+    <% } %>
+    <div class="steps" id="steps"></div>
+    <p class="note">¿No consigues conectarte? Comprueba que escribes la contraseña exactamente como se muestra, incluidas las mayúsculas y los símbolos.</p>
+  </div>
+  <script src="/js/public.js?v=<%= v %>"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · <%= appName %></title>
+  <link rel="stylesheet" href="/css/admin.css?v=<%= v %>">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/admin/tags"><%= appName %></a>
+  <nav class="topnav">
+    <a href="/admin/tags" class="<%= active === 'tags' ? 'active' : '' %>">Tags</a>
+    <a href="/admin/tags/nuevo" class="<%= active === 'new' ? 'active' : '' %>">Nuevo Tag</a>
+    <% if (currentUser) { %>
+      <span class="user-chip"><%= currentUser.username %></span>
+      <form method="post" action="/admin/logout" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="link-btn">Cerrar sesión</button>
+      </form>
+    <% } %>
+  </nav>
+</header>
+<main class="container">
+  <% if (flash) { %>
+    <div class="flash <%= flash.type %>"><%= flash.msg %></div>
+  <% } %>

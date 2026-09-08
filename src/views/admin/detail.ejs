@@ -1,0 +1,112 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1><%= tag.nombre %></h1>
+  <div class="page-actions">
+    <a class="btn" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
+    <form method="post" action="/admin/tags/<%= tag.id %>/estado" class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn"><%= tag.estado === 'activo' ? 'Pausar' : 'Activar' %></button>
+    </form>
+    <form method="post" action="/admin/tags/<%= tag.id %>/eliminar" class="inline-form" data-confirm="¿Eliminar este Tag? Los escaneos registrados también se eliminarán.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-danger">Eliminar</button>
+    </form>
+  </div>
+</section>
+
+<div class="stat-cards">
+  <div class="stat-card"><span class="stat-num"><%= tag.escaneos %></span><span class="stat-label">Escaneos totales</span></div>
+  <div class="stat-card"><span class="stat-num"><%= fmtDate(tag.ultimoEscaneo) %></span><span class="stat-label">Último escaneo</span></div>
+  <div class="stat-card"><span class="stat-num"><%= fmtDate(tag.fechaCreacion) %></span><span class="stat-label">Creado</span></div>
+  <div class="stat-card"><span class="stat-num"><%= fmtDate(tag.fechaActualizacion) %></span><span class="stat-label">Modificado</span></div>
+</div>
+
+<section class="panel">
+  <h2>URL pública</h2>
+  <p class="muted">Esta URL es <strong>inmutable</strong>: imprímela en el QR o prográmala en la etiqueta NFC. El destino se decide desde el panel.</p>
+  <div class="copy-row">
+    <code class="code-block" id="public-url"><%= publicUrl %></code>
+    <button type="button" class="btn btn-sm" data-copy="#public-url">Copiar</button>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Configuración actual</h2>
+  <dl class="kv">
+    <dt>Modo</dt>
+    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : 'Desactivado') %></span></dd>
+    <% if (tag.modo === 'url') { %>
+      <dt>Destino</dt>
+      <dd><a href="<%= tag.urlDestino %>" target="_blank" rel="noopener"><%= tag.urlDestino %></a></dd>
+    <% } else if (tag.modo === 'wifi') { %>
+      <dt>Red</dt>
+      <dd><strong><%= tag.wifiSsid %></strong> · <span class="badge badge-modo"><%= tag.wifiSeguridad === 'nopass' ? 'Sin contraseña' : tag.wifiSeguridad %></span></dd>
+      <dt>Contraseña</dt>
+      <dd><span class="mono" id="wifi-password"><%= tag.wifiPassword %></span> <button type="button" class="btn btn-sm" data-copy="#wifi-password">Copiar</button></dd>
+    <% } else { %>
+      <dt>Destino</dt>
+      <dd class="muted">Este código muestra «aún no configurado».</dd>
+    <% } %>
+    <dt>Soporte</dt>
+    <dd><%= tag.tipo === 'ambos' ? 'QR + NFC' : tag.tipo.toUpperCase() %></dd>
+    <dt>Estado</dt>
+    <dd><span class="estado-btn estado-<%= tag.estado %>"><%= tag.estado === 'activo' ? 'Activo' : 'Pausado' %></span></dd>
+  </dl>
+</section>
+
+<section class="panel">
+  <h2>Descargar QR</h2>
+  <p class="muted">Alta resolución, listo para imprimir. PNG para impresión, SVG para vectorial.</p>
+  <div class="btn-row">
+    <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=url">QR · URL fija (PNG)</a>
+    <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=url">QR · URL fija (SVG)</a>
+    <% if (tag.modo === 'wifi') { %>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=wifi">QR · WiFi directo (PNG)</a>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=wifi">QR · WiFi directo (SVG)</a>
+    <% } %>
+  </div>
+  <% if (tag.modo === 'wifi') { %>
+    <p class="muted">El QR «WiFi directo» codifica el formato estándar <code>WIFI:…</code>: las cámaras de Android lo reconocen y conectan al instante, sin pasar por la web.</p>
+  <% } %>
+</section>
+
+<section class="panel">
+  <h2>Payload NFC</h2>
+  <p class="muted">Escribe uno de estos valores en la etiqueta con una app de escritura NFC (ej. NFC Tools, TagWriter) o desde el navegador si es compatible (Chrome en Android).</p>
+  <div class="copy-row">
+    <span class="label">URL (recomendado)</span>
+    <code class="code-block" id="nfc-payload-url"><%= publicUrl %></code>
+    <button type="button" class="btn btn-sm" data-copy="#nfc-payload-url">Copiar</button>
+  </div>
+  <% if (tag.modo === 'wifi') { %>
+  <div class="copy-row">
+    <span class="label">WiFi (texto NDEF)</span>
+    <code class="code-block" id="nfc-payload-wifi"><%= wifiPayload %></code>
+    <button type="button" class="btn btn-sm" data-copy="#nfc-payload-wifi">Copiar</button>
+  </div>
+  <% } %>
+  <div id="nfc-write" hidden>
+    <p class="muted">Web NFC API detectada. Acerca la etiqueta al móvil y pulsa escribir.</p>
+    <div class="btn-row">
+      <button type="button" class="btn" data-nfc-write="url">Escribir URL en etiqueta</button>
+      <% if (tag.modo === 'wifi') { %>
+        <button type="button" class="btn" data-nfc-write="wifi">Escribir WiFi en etiqueta</button>
+      <% } %>
+    </div>
+    <p class="muted" id="nfc-status"></p>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Últimos escaneos</h2>
+  <% if (scans.length === 0) { %>
+    <p class="muted">Todavía no hay escaneos registrados.</p>
+  <% } else { %>
+  <ul class="scan-list">
+    <% for (const s of scans) { %>
+      <li><span class="num"><%= fmtDate(s.created_at) %></span> · <span class="muted"><%= s.label %></span></li>
+    <% } %>
+  </ul>
+  <% } %>
+</section>
+<%- include('partials/footer') %>
