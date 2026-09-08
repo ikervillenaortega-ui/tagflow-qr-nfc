@@ -26,8 +26,11 @@ inmediato. Cámbiala cuanto antes:
 npm run create-admin -- --username admin --password "TU-CONTRASEÑA"
 ```
 
-Puedes fijar otras credenciales iniciales con las variables `ADMIN_USERNAME` y
-`ADMIN_PASSWORD` antes del primer arranque.
+Puedes fijar o actualizar las credenciales del admin con las variables
+`ADMIN_USERNAME` y `ADMIN_PASSWORD`: si están definidas, la app crea o
+actualiza ese usuario en cada arranque (útil en despliegues como Render).
+Sin ellas, se usa el admin por defecto solo si la base de datos no tiene
+ningún usuario.
 
 En desarrollo: `npm run dev` (recarga automática). Tests: `npm test`.
 
