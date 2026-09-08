@@ -13,11 +13,21 @@ Aplicación web autoalojada para gestionar códigos **QR** y etiquetas **NFC** c
 
 ```bash
 npm install
-npm run create-admin          # usuario y contraseña del panel
 npm start                     # http://localhost:3000
 ```
 
 Requiere **Node.js ≥ 22** (mejor la LTS actual).
+
+**Primer arranque:** si no existe ningún usuario, la app crea automáticamente el
+admin por defecto `admin` / `admin1234` para que el panel sea accesible de
+inmediato. Cámbiala cuanto antes:
+
+```bash
+npm run create-admin -- --username admin --password "TU-CONTRASEÑA"
+```
+
+Puedes fijar otras credenciales iniciales con las variables `ADMIN_USERNAME` y
+`ADMIN_PASSWORD` antes del primer arranque.
 
 En desarrollo: `npm run dev` (recarga automática). Tests: `npm test`.
 
