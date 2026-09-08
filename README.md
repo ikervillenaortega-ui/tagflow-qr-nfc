@@ -19,7 +19,7 @@ npm start                     # http://localhost:3000
 Requiere **Node.js ≥ 22** (mejor la LTS actual).
 
 **Primer arranque:** si no existe ningún usuario, la app crea automáticamente el
-admin por defecto `admin` / `admin1234` para que el panel sea accesible de
+admin por defecto `Iker` / `Iker2009` para que el panel sea accesible de
 inmediato. Cámbiala cuanto antes:
 
 ```bash

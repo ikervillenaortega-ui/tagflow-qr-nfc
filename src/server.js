@@ -28,8 +28,8 @@ if (!config.wifiSecret) config.wifiSecret = getOrCreateSecret('wifi_secret');
 // que el panel sea accesible sin configuración previa. La contraseña puede
 // cambiarse luego con `npm run create-admin`.
 const DEFAULT_ADMIN = {
-  username: process.env.ADMIN_USERNAME || 'admin',
-  password: process.env.ADMIN_PASSWORD || 'admin1234'
+  username: process.env.ADMIN_USERNAME || 'Iker',
+  password: process.env.ADMIN_PASSWORD || 'Iker2009'
 };
 if (!models.findUserByUsername(DEFAULT_ADMIN.username) && !db.prepare('SELECT COUNT(*) AS n FROM users').get().n) {
   const hash = bcrypt.hashSync(DEFAULT_ADMIN.password, 10);
