@@ -49,6 +49,15 @@ const MIGRATIONS = [
 
       CREATE INDEX IF NOT EXISTS idx_scans_tag_created ON scans(tag_id, created_at);
     `
+  },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `
   }
 ];
 

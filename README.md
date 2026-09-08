@@ -73,6 +73,8 @@ test/              # tests con node:test (unitarios + integración)
 
 ## Seguridad
 
+- **Secretos automáticos:** si no defines `SESSION_SECRET` / `WIFI_SECRET`, en producción la app genera secretos aleatorios y los persiste en la base de datos (tabla `meta`). Así funciona sin configuración previa en cualquier host (Render, Railway…); para control total, defínelos con variables de entorno.
+- **Producción:** detrás de HTTPS/proxy (Render, Nginx, Cloudflare…) `TRUST_PROXY` y `COOKIE_SECURE` se activan por defecto (desactívalos explícitamente con `false` si hace falta).
 - Contraseñas del panel: bcrypt (coste 10).
 - Contraseñas WiFi: AES-256-GCM con clave derivada de `WIFI_SECRET`.
 - Sesiones: cookie `httpOnly`, `SameSite=Lax`, `Secure` (con `COOKIE_SECURE=true`), almacenadas en SQLite.
