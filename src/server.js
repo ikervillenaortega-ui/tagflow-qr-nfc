@@ -1,10 +1,13 @@
 'use strict';
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const config = require('./config');
 const { openDb } = require('./db');
+const { createModels } = require('./models');
 const { createApp } = require('./app');
 
 const db = openDb(config.dbPath);
+const models = createModels(db, config);
 
 // Limpieza de sesiones caducadas al arrancar.
 db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
@@ -20,6 +23,19 @@ function getOrCreateSecret(key) {
 }
 if (!config.sessionSecret) config.sessionSecret = getOrCreateSecret('session_secret');
 if (!config.wifiSecret) config.wifiSecret = getOrCreateSecret('wifi_secret');
+
+// Primer arranque: si no hay ningún usuario, se crea el admin por defecto para
+// que el panel sea accesible sin configuración previa. La contraseña puede
+// cambiarse luego con `npm run create-admin`.
+const DEFAULT_ADMIN = {
+  username: process.env.ADMIN_USERNAME || 'admin',
+  password: process.env.ADMIN_PASSWORD || 'admin1234'
+};
+if (!models.findUserByUsername(DEFAULT_ADMIN.username) && !db.prepare('SELECT COUNT(*) AS n FROM users').get().n) {
+  const hash = bcrypt.hashSync(DEFAULT_ADMIN.password, 10);
+  models.createUser(DEFAULT_ADMIN.username, hash);
+  console.log(`[${config.appName}] Admin por defecto creado: «${DEFAULT_ADMIN.username}» / «${DEFAULT_ADMIN.password}» (cámbiala con npm run create-admin).`);
+}
 
 const app = createApp({ config, db });
 
