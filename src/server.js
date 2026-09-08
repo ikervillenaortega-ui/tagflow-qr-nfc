@@ -25,16 +25,28 @@ if (!config.sessionSecret) config.sessionSecret = getOrCreateSecret('session_sec
 if (!config.wifiSecret) config.wifiSecret = getOrCreateSecret('wifi_secret');
 
 // Primer arranque: si no hay ningún usuario, se crea el admin por defecto para
-// que el panel sea accesible sin configuración previa. La contraseña puede
-// cambiarse luego con `npm run create-admin`.
+// que el panel sea accesible sin configuración previa. Si vienen
+// ADMIN_USERNAME/ADMIN_PASSWORD por entorno, se crea o actualiza ese usuario
+// (útil para fijar credenciales en el despliegue).
+function ensureAdmin(username, password) {
+  const existing = models.findUserByUsername(username);
+  const hash = bcrypt.hashSync(password, 10);
+  if (existing) {
+    models.updateUserPassword(existing.id, hash);
+  } else {
+    models.createUser(username, hash);
+  }
+}
 const DEFAULT_ADMIN = {
   username: process.env.ADMIN_USERNAME || 'Iker',
   password: process.env.ADMIN_PASSWORD || 'Iker2009'
 };
-if (!models.findUserByUsername(DEFAULT_ADMIN.username) && !db.prepare('SELECT COUNT(*) AS n FROM users').get().n) {
-  const hash = bcrypt.hashSync(DEFAULT_ADMIN.password, 10);
-  models.createUser(DEFAULT_ADMIN.username, hash);
-  console.log(`[${config.appName}] Admin por defecto creado: «${DEFAULT_ADMIN.username}» / «${DEFAULT_ADMIN.password}» (cámbiala con npm run create-admin).`);
+if (process.env.ADMIN_USERNAME || process.env.ADMIN_PASSWORD) {
+  ensureAdmin(DEFAULT_ADMIN.username, DEFAULT_ADMIN.password);
+  console.log(`[${config.appName}] Admin «${DEFAULT_ADMIN.username}» creado/actualizado con las credenciales de ADMIN_USERNAME/ADMIN_PASSWORD.`);
+} else if (!db.prepare('SELECT COUNT(*) AS n FROM users').get().n) {
+  ensureAdmin(DEFAULT_ADMIN.username, DEFAULT_ADMIN.password);
+  console.log(`[${config.appName}] Admin por defecto creado: «${DEFAULT_ADMIN.username}» (cámbiala con npm run create-admin).`);
 }
 
 const app = createApp({ config, db });
