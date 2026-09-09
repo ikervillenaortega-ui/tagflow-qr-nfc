@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildWifiString } = require('../src/wifi');
+const { buildWifiString, buildAndroidWifiCredential } = require('../src/wifi');
 
 test('genera el string estándar WPA', () => {
   const out = buildWifiString({ ssid: 'MiRed', password: 'clave1234', security: 'WPA' });
@@ -26,4 +26,25 @@ test('escapa caracteres especiales del formato', () => {
 test('usa WPA por defecto si la seguridad es desconocida', () => {
   const out = buildWifiString({ ssid: 'Red', password: 'clave1234', security: 'RARO' });
   assert.equal(out, 'WIFI:T:WPA;S:Red;P:clave1234;;');
+});
+
+test('credencial Android WPA incluye ssid y contraseña', () => {
+  const cred = buildAndroidWifiCredential({ ssid: 'MiRed', password: 'clave1234', security: 'WPA' });
+  assert.deepEqual(cred, { type: 'wpa2', ssid: 'MiRed', password: 'clave1234' });
+});
+
+test('credencial Android para red abierta sin contraseña', () => {
+  const cred = buildAndroidWifiCredential({ ssid: 'Café', security: 'nopass' });
+  assert.deepEqual(cred, { type: 'open', ssid: 'Café' });
+  assert.ok(!('password' in cred));
+});
+
+test('credencial Android WEP mapea el tipo', () => {
+  const cred = buildAndroidWifiCredential({ ssid: 'X', password: '12345', security: 'WEP' });
+  assert.deepEqual(cred, { type: 'wep', ssid: 'X', password: '12345' });
+});
+
+test('credencial Android con seguridad desconocida usa wpa2', () => {
+  const cred = buildAndroidWifiCredential({ ssid: 'Red', password: 'clave1234', security: 'RARO' });
+  assert.equal(cred.type, 'wpa2');
 });

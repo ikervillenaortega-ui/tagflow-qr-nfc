@@ -2,6 +2,7 @@
 const express = require('express');
 const { detectOS, isHttpUrl, clientIp } = require('../helpers');
 const { ipToLocation } = require('../geo');
+const { buildAndroidWifiCredential } = require('../wifi');
 
 function createPublicRouter({ db, models, config }) {
   const router = express.Router();
@@ -68,6 +69,7 @@ function createPublicRouter({ db, models, config }) {
         title: `Conectarse a ${wifi.ssid}`,
         nombre: tag.nombre,
         wifi,
+        androidCred: buildAndroidWifiCredential(wifi),
         os: detectOS(req.get('user-agent'))
       });
     }

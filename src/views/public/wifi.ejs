@@ -19,6 +19,13 @@
     .pw-row { display: flex; gap: 8px; margin-top: 12px; }
     .pw { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 15px; word-break: break-all; }
     button { background: #2563eb; color: #fff; border: 0; border-radius: 10px; padding: 0 14px; font-weight: 600; cursor: pointer; }
+    .connect { margin-top: 16px; text-align: center; }
+    .connect-btn { width: 100%; padding: 14px 16px; font-size: 16px; background: #16a34a; }
+    .connect-btn:active { background: #15803d; }
+    .connect-msg { font-size: 14px; margin: 10px 0 0; line-height: 1.5; }
+    .connect-msg.ok { color: #15803d; font-weight: 600; }
+    .connect-msg.err { color: #b91c1c; }
+    .connect-msg.busy { color: #64748b; }
     .steps { margin-top: 16px; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; background: #fbfcfe; }
     .steps h2 { font-size: 13px; margin: 0 0 8px; color: #475569; text-transform: uppercase; letter-spacing: .3px; }
     .steps ol { margin: 8px 0; padding-left: 20px; font-size: 14px; line-height: 1.6; }
@@ -30,18 +37,28 @@
       .ssid-box { background: #0f172a; border-color: #334155; }
       .pw { background: #0f172a; border-color: #475569; color: #e2e8f0; }
       .steps { background: #16233b; border-color: #334155; }
+      .connect-btn { background: #15803d; }
+      .connect-btn:active { background: #166534; }
+      .connect-msg.ok { color: #4ade80; }
+      .connect-msg.err { color: #f87171; }
       .badge { background: #334155; color: #cbd5e1; }
       .sub, .note { color: #94a3b8; }
       .steps h2 { color: #cbd5e1; }
     }
   </style>
 </head>
-<body data-os="<%= os %>" data-has-pw="<%= wifi.seguridad !== 'nopass' ? 'true' : 'false' %>" data-ssid="<%= wifi.ssid %>">
+<body data-os="<%= os %>" data-has-pw="<%= wifi.seguridad !== 'nopass' ? 'true' : 'false' %>" data-ssid="<%= wifi.ssid %>" data-cred='<%= JSON.stringify(androidCred) %>'>
   <div class="card">
     <div class="icon">📶</div>
     <h1><%= wifi.ssid %></h1>
     <p class="sub"><%= nombre ? nombre : 'Red WiFi' %> · <span class="badge"><%= wifi.seguridad === 'nopass' ? 'Red abierta' : 'Seguridad ' + wifi.seguridad %></span></p>
     <div class="ssid-box"><span class="ssid"><%= wifi.ssid %></span></div>
+    <!-- Android (Chrome): el botón pide al sistema la conexión directa, igual
+         que al leer un QR de WiFi con la cámara. Se rellena desde public.js. -->
+    <div class="connect" id="connect-area" hidden>
+      <button type="button" id="connect-btn" class="connect-btn">📲 Conectar a la red</button>
+      <p class="connect-msg" id="connect-msg"></p>
+    </div>
     <% if (wifi.seguridad !== 'nopass') { %>
     <div class="pw-row">
       <input class="pw" id="pw" type="text" value="<%= wifi.password %>" readonly>

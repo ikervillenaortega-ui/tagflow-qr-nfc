@@ -198,6 +198,12 @@ test('flujo completo: login → crear tag URL → escaneo → editar a WiFi → 
   // Las instrucciones adaptadas al SO se generan en el cliente (public.js) a
   // partir de data-os; el servidor marca el sistema operativo detectado.
   assert.match(wifiPage.body, /data-os="ios"/);
+  // Botón de conexión directa y credencial para Android (Chrome): al pulsar,
+  // el sistema abre su diálogo nativo para unirse a la red.
+  assert.match(wifiPage.body, /Conectar a la red/);
+  assert.match(wifiPage.body, /data-cred='/);
+  assert.match(wifiPage.body, /type&#34;:&#34;wpa2&#34;/);
+  assert.match(wifiPage.body, /Red Restaurante/);
   assert.equal(models.getTagById(id).escaneos, 2);
 
   // 8. Editar manteniendo la contraseña (campo en blanco)

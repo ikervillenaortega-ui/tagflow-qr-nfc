@@ -12,9 +12,9 @@
     var html;
     if (os === 'android') {
       html = '<h2>Cómo conectarte (Android)</h2><ol>' +
-        '<li>Abre <strong>Ajustes → WiFi</strong>.</li>' +
-        '<li>Selecciona la red <strong>' + esc(ssid) + '</strong>.</li>' +
-        '<li>Pega la contraseña y pulsa <strong>Conectar</strong>.</li></ol>';
+        '<li>Pulsa <strong>📲 Conectar a la red</strong> y confirma en la ventana que abre tu móvil.</li>' +
+        '<li>Si tu móvil no lo soporta: abre <strong>Ajustes → WiFi</strong>.</li>' +
+        '<li>Selecciona la red <strong>' + esc(ssid) + '</strong> y pega la contraseña.</li></ol>';
     } else if (os === 'ios') {
       html = '<h2>Cómo conectarte (iPhone / iPad)</h2><ol>' +
         '<li>Abre <strong>Ajustes → WiFi</strong>.</li>' +
@@ -27,6 +27,48 @@
         '<li>Introduce la contraseña que se muestra arriba.</li></ol>';
     }
     steps.innerHTML = html;
+  }
+
+  // Conexión directa (Android + Chrome): la Credential Management API abre el
+  // diálogo nativo del sistema para unirse a la red, igual que al escanear un
+  // QR de WiFi con la cámara. En otros sistemas el botón no se muestra.
+  var connectArea = document.getElementById('connect-area');
+  var connectBtn = document.getElementById('connect-btn');
+  var connectMsg = document.getElementById('connect-msg');
+  if (connectArea && connectBtn && connectMsg && os === 'android') {
+    var cred = null;
+    try { cred = JSON.parse(body.dataset.cred || 'null'); } catch (e) { cred = null; }
+    var wm = navigator.wifi;
+    var canConnect = cred && wm && typeof wm.getCcms === 'function' && typeof wm.addCcm === 'function';
+    if (canConnect) {
+      connectArea.hidden = false;
+      connectBtn.addEventListener('click', function () {
+        setMsg('Abriendo la conexión…', 'busy');
+        wm.getCcms().then(function (list) {
+          var i, existing = null;
+          for (i = 0; list && i < list.length; i++) {
+            if (list[i] && list[i].ssid === cred.ssid) existing = list[i];
+          }
+          var op = existing ? wm.addCcm(cred, existing.id) : wm.addCcm(cred);
+          return Promise.resolve(op).then(function () {
+            setMsg('✓ Red guardada. Si no te has conectado ya, elígela en Ajustes → WiFi.', 'ok');
+          });
+        }).catch(function (err) {
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+            setMsg('Conexión cancelada. Comprueba que has dado permiso y vuelve a intentarlo.', 'err');
+          } else if (err && err.name === 'NotSupportedError') {
+            setMsg('Este móvil no soporta la conexión directa. Sigue los pasos de abajo.', 'err');
+          } else {
+            setMsg('No se pudo completar la conexión. Sigue los pasos de abajo.', 'err');
+          }
+        });
+      });
+    }
+  }
+
+  function setMsg(text, cls) {
+    connectMsg.textContent = text;
+    connectMsg.className = 'connect-msg' + (cls ? ' ' + cls : '');
   }
 
   // Copiar la contraseña al portapapeles.
