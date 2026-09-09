@@ -1,0 +1,50 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1>Generar Tags en lote</h1>
+  <a class="link" href="/admin/tags">← Volver al listado</a>
+</section>
+
+<% if (errors.length > 0) { %>
+  <div class="flash error"><ul><% for (const e of errors) { %><li><%= e %></li><% } %></ul></div>
+<% } %>
+
+<section class="panel" style="max-width: 560px;">
+  <p class="muted">
+    Útil para tener <strong>stock de QR/NFC listos para vender</strong> antes de saber a qué
+    cliente irá cada uno. Se crean todos en modo <em>Desactivado</em> (página neutra al escanear)
+    y luego asignas el destino de cada uno desde el panel cuando lo vendas. El QR/NFC físico no
+    cambia nunca.
+  </p>
+
+  <form method="post" action="/admin/tags/masivo" class="tag-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <fieldset>
+      <legend>Cantidad y nombres</legend>
+      <div class="form-grid">
+        <label>¿Cuántos quieres generar? *
+          <input type="number" name="cantidad" min="1" max="500" required value="<%= values.cantidad || '' %>" placeholder="Ej. 50">
+          <small>Entre 1 y 500 de una vez.</small>
+        </label>
+        <label>Prefijo del nombre *
+          <input type="text" name="prefijo" maxlength="60" required value="<%= values.prefijo || 'Tag' %>">
+          <small>Se numerarán automáticamente: «Tag 1», «Tag 2»…</small>
+        </label>
+        <label>Tipo de soporte
+          <select name="tipo">
+            <% const tipoSel = values.tipo || 'ambos'; %>
+            <option value="ambos" <%= tipoSel === 'ambos' ? 'selected' : '' %>>QR + NFC (recomendado)</option>
+            <option value="qr" <%= tipoSel === 'qr' ? 'selected' : '' %>>Solo QR</option>
+            <option value="nfc" <%= tipoSel === 'nfc' ? 'selected' : '' %>>Solo NFC</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Generar Tags</button>
+      <a class="btn" href="/admin/tags">Cancelar</a>
+    </div>
+  </form>
+</section>
+<%- include('partials/footer') %>

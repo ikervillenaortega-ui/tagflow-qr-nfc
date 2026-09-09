@@ -268,3 +268,77 @@ test('logout cierra la sesión', async () => {
   assert.equal(after.statusCode, 302);
   assert.match(after.headers.location, /\/admin\/login/);
 });
+
+test('creación masiva: formulario, validación y creación correlativa', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+
+  // 1. Formulario accesible
+  const formPage = await req('/admin/tags/masivo', { cookie });
+  assert.equal(formPage.statusCode, 200);
+  assert.match(formPage.body, /Generar Tags en lote/);
+  const csrf = getCsrf(formPage.body);
+
+  // 2. Cantidad fuera de rango → 400
+  const bad = await req('/admin/tags/masivo', {
+    method: 'POST',
+    body: { _csrf: csrf, cantidad: '0', prefijo: 'Stock' },
+    cookie
+  });
+  assert.equal(bad.statusCode, 400);
+  assert.match(bad.body, /entre 1 y 500/);
+
+  // 3. Crear 3 tags de stock
+  const ok = await req('/admin/tags/masivo', {
+    method: 'POST',
+    body: { _csrf: csrf, cantidad: '3', prefijo: 'Stock', tipo: 'ambos' },
+    cookie
+  });
+  assert.equal(ok.statusCode, 302);
+  assert.match(ok.headers.location, /modo=desactivado/);
+
+  const stock = models.listTagsByModo('desactivado');
+  assert.equal(stock.length, 3);
+  const nombres = stock.map((t) => t.nombre);
+  assert.deepEqual(nombres, ['Stock 1', 'Stock 2', 'Stock 3']);
+  for (const t of stock) {
+    assert.equal(t.modo, 'desactivado');
+    assert.equal(t.tipo, 'ambos');
+    assert.equal(t.estado, 'activo');
+    assert.match(t.slug, /^[A-Za-z0-9]{8}$/);
+  }
+
+  // 4. La numeración continúa donde quedó
+  const ok2 = await req('/admin/tags/masivo', {
+    method: 'POST',
+    body: { _csrf: csrf, cantidad: '2', prefijo: 'Stock', tipo: 'qr' },
+    cookie
+  });
+  assert.equal(ok2.statusCode, 302);
+  const stock2 = models.listTagsByModo('desactivado');
+  assert.equal(stock2.length, 5);
+  assert.equal(stock2[3].nombre, 'Stock 4');
+  assert.equal(stock2[4].nombre, 'Stock 5');
+  assert.equal(stock2[4].tipo, 'qr');
+});
+
+test('descarga ZIP de QR pendientes', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const pendientes = models.listTagsByModo('desactivado');
+  assert.ok(pendientes.length >= 2, 'debe haber tags pendientes de la prueba anterior');
+
+  const zip = await req('/admin/tags/qr-pendientes.zip', { cookie });
+  assert.equal(zip.statusCode, 200);
+  assert.match(zip.headers['content-type'], /application\/zip/);
+  assert.match(zip.headers['content-disposition'], /qr-pendientes\.zip/);
+  // Cabecera de fichero ZIP (PK\x03\x04) y nombres de fichero en claro.
+  assert.ok(zip.rawPayload.subarray(0, 2).toString() === 'PK');
+  assert.ok(zip.rawPayload.includes('.png'), 'el ZIP contiene ficheros PNG');
+  assert.ok(zip.rawPayload.includes(pendientes[0].slug), 'el ZIP nombra los ficheros con el slug');
+  assert.ok(zip.rawPayload.length > 500);
+});
+
+test('la ruta ZIP exige sesión', async () => {
+  const anon = await req('/admin/tags/qr-pendientes.zip');
+  assert.equal(anon.statusCode, 302);
+  assert.match(anon.headers.location, /\/admin\/login/);
+});

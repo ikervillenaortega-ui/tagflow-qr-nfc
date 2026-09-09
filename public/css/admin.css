@@ -77,6 +77,14 @@ a:hover { text-decoration: underline; }
 .flash.error { background: #fef2f2; border-color: #fecaca; color: var(--danger); }
 .flash ul { margin: 4px 0; padding-left: 18px; }
 
+/* ===== Aviso de pendientes ===== */
+.banner-pendientes {
+  background: #fffbeb; border: 1px solid #fde68a; color: var(--warn);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 14px;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.banner-pendientes .link { font-weight: 600; margin-left: auto; }
+
 /* ===== Tabla ===== */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
 .filters input[type="search"] { min-width: 220px; }
@@ -121,7 +129,7 @@ th.num { text-align: right; }
 .tag-form legend { font-weight: 700; padding: 0 8px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: #334155; }
-input[type="text"], input[type="url"], input[type="password"], input[type="search"], select, textarea {
+input[type="text"], input[type="url"], input[type="password"], input[type="search"], input[type="number"], select, textarea {
   font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface); color: var(--text); width: 100%;
 }

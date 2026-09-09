@@ -65,6 +65,8 @@ test/              # tests con node:test (unitarios + integración)
 | `GET /admin` | Panel (redirige a login si no hay sesión) |
 | `GET /admin/tags` | Listado con búsqueda y filtros |
 | `GET·POST /admin/tags/nuevo` · `/admin/tags` | Crear Tag |
+| `GET·POST /admin/tags/masivo` | Generar Tags en lote (stock, 1–500 de golpe) |
+| `GET /admin/tags/qr-pendientes.zip` | Descargar ZIP con los QR de todos los Tags sin configurar |
 | `GET·POST /admin/tags/{id}` · `/editar` | Ver / editar Tag |
 | `POST /admin/tags/{id}/eliminar` | Eliminar Tag |
 | `POST /admin/tags/{id}/estado` | Activar / pausar |
@@ -77,6 +79,16 @@ test/              # tests con node:test (unitarios + integración)
 - **Modo `wifi`:** página ligera con SSID, contraseña (botón copiar) e instrucciones adaptadas al SO detectado por user-agent. En Android la cámara nativa ya conecta directamente con el QR «WiFi directo» del panel.
 - **`desactivado` / pausado / inexistente:** página neutra «aún no configurado».
 - Cada escaneo incrementa el contador, guarda fecha, user-agent y un hash de la IP (nunca la IP en claro).
+
+## Stock de QR/NFC (venta de códigos en blanco)
+
+El panel permite el flujo típico de vender QR/NFC genéricos y configurarlos después:
+
+1. **«Generar varios»** crea de una vez entre 1 y 500 Tags genéricos en modo *Desactivado*, con nombres correlativos («Tag 1», «Tag 2»…) y cada uno con su URL fija única.
+2. **«Descargar QR pendientes (ZIP)»** baja en un solo ZIP los PNG de todos los Tags aún sin configurar, listos para imprimir y pegar en el producto.
+3. Cuando vendes uno, lo buscas en el listado y le asignas el destino (URL o WiFi): el QR/NFC físico no cambia nunca.
+
+El dashboard muestra un aviso con el número de Tags sin configurar y el acceso directo al ZIP.
 
 ## QR y NFC
 

@@ -1,8 +1,21 @@
 <%- include('partials/header', { title, active }) %>
 <section class="page-head">
   <h1>Tags</h1>
-  <a class="btn btn-primary" href="/admin/tags/nuevo">+ Nuevo Tag</a>
+  <div class="page-actions">
+    <a class="btn" href="/admin/tags/masivo">Generar varios</a>
+    <% if (pendientes > 0) { %>
+      <a class="btn" href="/admin/tags/qr-pendientes.zip">Descargar QR pendientes (ZIP)</a>
+    <% } %>
+    <a class="btn btn-primary" href="/admin/tags/nuevo">+ Nuevo Tag</a>
+  </div>
 </section>
+
+<% if (pendientes > 0) { %>
+  <div class="banner-pendientes">
+    <strong><%= pendientes %></strong> <%= pendientes === 1 ? 'tag sin configurar' : 'tags sin configurar' %> — descarga sus QR de golpe o asígnales destino desde «Ver».
+    <a class="link" href="/admin/tags/qr-pendientes.zip">Descargar ZIP de QR pendientes</a>
+  </div>
+<% } %>
 
 <form method="get" action="/admin/tags" class="filters">
   <input type="search" name="q" value="<%= filters.q %>" placeholder="Buscar por nombre o slug…">

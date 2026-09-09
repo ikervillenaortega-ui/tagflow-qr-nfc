@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const archiver = require('archiver');
 const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl } = require('../helpers');
 const { buildWifiString } = require('../wifi');
 const { qrPng, qrSvg } = require('../qr');
@@ -85,6 +86,7 @@ function createAdminRouter({ db, models, config, auth }) {
       title: 'Tags',
       active: 'tags',
       list,
+      pendientes: models.countTagsByModo('desactivado'),
       filters: {
         q: req.query.q || '',
         tipo: req.query.tipo || '',
@@ -93,6 +95,65 @@ function createAdminRouter({ db, models, config, auth }) {
       }
     });
   });
+
+  // Creación masiva de tags genéricos (stock para vender, aún sin configurar)
+  router.get('/tags/masivo', (req, res) => {
+    res.render('admin/bulk', {
+      title: 'Generar Tags en lote',
+      active: 'bulk',
+      errors: [],
+      values: {}
+    });
+  });
+
+  router.post('/tags/masivo', (req, res) => {
+    const cantidad = parseInt(String(req.body.cantidad || '').trim(), 10);
+    const prefijo = String(req.body.prefijo || 'Tag').trim();
+    const tipo = ['qr', 'nfc', 'ambos'].includes(req.body.tipo) ? req.body.tipo : 'ambos';
+    const errors = [];
+
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 500) {
+      errors.push('Introduce una cantidad entre 1 y 500.');
+    }
+    if (!prefijo) errors.push('El prefijo del nombre es obligatorio.');
+    else if (prefijo.length > 60) errors.push('El prefijo no puede superar los 60 caracteres.');
+    if (errors.length) {
+      return res.status(400).render('admin/bulk', {
+        title: 'Generar Tags en lote',
+        active: 'bulk',
+        errors,
+        values: req.body || {}
+      });
+    }
+
+    const creados = models.createBulkTags({ cantidad, prefijo, tipo });
+    req.session.flash = {
+      type: 'success',
+      msg: `${creados} ${creados === 1 ? 'tag genérico creado' : 'tags genéricos creados'} en modo desactivado.`
+    };
+    res.redirect('/admin/tags?modo=desactivado');
+  });
+
+  // Descarga en ZIP de los QR de todos los tags sin configurar (stock pendiente)
+  router.get('/tags/qr-pendientes.zip', wrap(async (req, res) => {
+    const pendientes = models.listTagsByModo('desactivado');
+    if (pendientes.length === 0) {
+      req.session.flash = { type: 'error', msg: 'No hay Tags sin configurar para descargar.' };
+      return res.redirect('/admin/tags');
+    }
+
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', 'attachment; filename="qr-pendientes.zip"');
+
+    const zip = archiver('zip', { zlib: { level: 9 } });
+    zip.pipe(res);
+    for (const tag of pendientes) {
+      const png = await qrPng(tagPublicUrl(publicBaseUrl(req, config), tag.slug));
+      const nombreLimpio = tag.nombre.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      zip.append(png, { name: `${nombreLimpio}-${tag.slug}.png` });
+    }
+    await zip.finalize();
+  }));
 
   // Crear
   router.get('/tags/nuevo', (req, res) => {

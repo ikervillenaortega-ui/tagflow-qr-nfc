@@ -94,6 +94,61 @@ function createModels(db, config) {
     return rowToTag(db.prepare(`SELECT ${TAG_COLUMNS} FROM tags WHERE slug = ?`).get(slug));
   }
 
+  // Crea N tags genéricos (stock para vender) en modo desactivado, con nombres
+  // correlativos del tipo «Prefijo 1», «Prefijo 2»… Devuelve el número creado.
+  function createBulkTags({ cantidad, prefijo, tipo }) {
+    const n = Math.min(500, Math.max(1, parseInt(String(cantidad), 10) || 1));
+    const base = String(prefijo || 'Tag').trim().slice(0, 60) || 'Tag';
+    const soporte = TIPOS.includes(tipo) ? tipo : 'ambos';
+    const now = nowIso();
+
+    // Siguiente número correlativo para el prefijo elegido, para que los nombres
+    // queden como «Prefijo 1», «Prefijo 2»… sin repetirse.
+    const ultimo = db
+      .prepare("SELECT nombre FROM tags WHERE nombre LIKE ? ORDER BY id DESC LIMIT 1")
+      .get(`${base} %`);
+    let siguiente = 1;
+    if (ultimo) {
+      const numero = parseInt(String(ultimo.nombre).replace(`${base} `, ''), 10);
+      if (Number.isInteger(numero)) siguiente = numero + 1;
+    }
+
+    const insertar = db.prepare(
+      `INSERT INTO tags
+         (slug, nombre, tipo, modo, estado, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, 'desactivado', 'activo', ?, ?)`
+    );
+    const crearTodos = db.transaction((cuantos) => {
+      for (let i = 0; i < cuantos; i += 1) {
+        let slug;
+        // Los slugs son aleatorios; ante una colisión (improbable) se regenera.
+        for (;;) {
+          slug = generateSlug(8);
+          try {
+            insertar.run(slug, `${base} ${siguiente + i}`, soporte, now, now);
+            break;
+          } catch (err) {
+            if (!String(err.message).includes('UNIQUE')) throw err;
+          }
+        }
+      }
+    });
+    crearTodos(n);
+    return n;
+  }
+
+  function countTagsByModo(modo) {
+    return db.prepare('SELECT COUNT(*) AS c FROM tags WHERE modo = ?').get(modo).c;
+  }
+
+  // Todos los tags de un modo concreto (sin paginar) — p. ej. para el ZIP de pendientes.
+  function listTagsByModo(modo) {
+    return db
+      .prepare(`SELECT ${TAG_COLUMNS} FROM tags WHERE modo = ? ORDER BY id ASC`)
+      .all(modo)
+      .map(rowToTag);
+  }
+
   function createTag(input) {
     const slug = input.slug && isValidSlug(input.slug) ? input.slug : generateSlug(8);
     const wifiPasswordEnc = input.wifi && input.wifi.password ? encryptText(input.wifi.password, key) : null;
@@ -220,6 +275,9 @@ function createModels(db, config) {
     getTagById,
     getTagBySlug,
     createTag,
+    createBulkTags,
+    countTagsByModo,
+    listTagsByModo,
     updateTag,
     deleteTag,
     setEstado,
