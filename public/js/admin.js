@@ -78,6 +78,55 @@
     update();
   }
 
+  // Restaurar copia de seguridad (subida del fichero .db en crudo)
+  var backupBox = document.getElementById('backup-restore');
+  if (backupBox) {
+    var fileInput = document.getElementById('backup-file');
+    var restoreBtn = document.getElementById('backup-restore-btn');
+    var statusEl = document.getElementById('backup-status');
+    var fileNameEl = document.getElementById('backup-file-name');
+
+    function setStatus(text, ok) {
+      statusEl.textContent = text;
+      statusEl.className = ok ? 'backup-ok' : 'backup-err';
+    }
+
+    fileInput.addEventListener('change', function () {
+      var f = fileInput.files && fileInput.files[0];
+      if (fileNameEl) fileNameEl.textContent = f ? '✓ ' + f.name : 'Elige un fichero .db de TagFlow…';
+      if (restoreBtn) restoreBtn.disabled = !f;
+      if (statusEl) { statusEl.textContent = ''; statusEl.className = 'muted'; }
+    });
+
+    restoreBtn.addEventListener('click', function () {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      setStatus('Subiendo y restaurando… no cierres esta página.', false);
+      restoreBtn.disabled = true;
+      fetch('/admin/backup/restaurar', {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': backupBox.dataset.csrf },
+        body: f
+      })
+        .then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (j) { return { okHttp: r.ok, json: j }; });
+        })
+        .then(function (out) {
+          if (out.json && out.json.ok) {
+            setStatus('✓ Copia restaurada correctamente. Recargando…', true);
+            setTimeout(function () { window.location.reload(); }, 1200);
+          } else {
+            setStatus('✗ ' + ((out.json && out.json.error) || 'No se pudo restaurar. Comprueba que el fichero es una copia de TagFlow.'), false);
+            restoreBtn.disabled = false;
+          }
+        })
+        .catch(function () {
+          setStatus('✗ Error de conexión. Inténtalo de nuevo.', false);
+          restoreBtn.disabled = false;
+        });
+    });
+  }
+
   // Escritura NFC vía Web NFC API (solo Chrome en Android)
   var nfcWrite = document.getElementById('nfc-write');
   if (nfcWrite && 'NDEFReader' in window) {

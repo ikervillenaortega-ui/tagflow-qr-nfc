@@ -78,6 +78,13 @@ async function loginAs(username, password) {
   return { res, cookie: getCookie(res) || cookie };
 }
 
+// Petición con cuerpo en crudo (p. ej. subida del fichero de copia).
+async function rawReq(path, { buffer, headers = {}, cookie } = {}) {
+  const h = { ...headers };
+  if (cookie) h.cookie = cookie;
+  return inject(app, { method: 'POST', url: path, payload: buffer, headers: h });
+}
+
 // --- Suite ---
 
 test('la landing pública responde', async () => {
@@ -392,6 +399,80 @@ test('flujo de venta: tag genérico → «Configurar (venta)» → modo Contacto
   // 6. El dashboard ya no ofrece «Configurar (venta)» para el tag configurado
   const dash2 = await get('/admin/tags');
   assert.ok(!dash2.body.includes(`/admin/tags/${stock[0].id}/editar?modo=contacto`));
+});
+
+test('copia de seguridad: descarga un .db válido y la restauración sustituye los datos', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const count = (t) => db.prepare(`SELECT COUNT(*) AS c FROM ${t}`).get().c;
+  const base = { tags: count('tags'), scans: count('scans') };
+
+  // 1. Estado conocido: dos tags nuevos, uno con un escaneo (relativo a lo que había).
+  const a = models.createTag({
+    nombre: 'Backup A',
+    tipo: 'qr',
+    modo: 'url',
+    urlDestino: 'https://a.example.com',
+    estado: 'activo'
+  });
+  const b = models.createTag({ nombre: 'Backup B', tipo: 'nfc', modo: 'desactivado', estado: 'activo' });
+  models.recordScan(a.id, { ip: '127.0.0.1', headers: { 'user-agent': 'curl/8' } });
+  const antes = { tags: base.tags + 2, scans: base.scans + 1 };
+
+  // 2. La página de copia muestra el estado y el enlace de descarga.
+  const page = await req('/admin/backup', { cookie });
+  assert.equal(page.statusCode, 200);
+  assert.match(page.body, /Descargar copia de seguridad/);
+  assert.match(page.body, /Restaurar una copia/);
+  const csrf = getCsrf(page.body);
+
+  // 3. Descargar genera un fichero SQLite real (cabecera mágica + contenido).
+  const dl = await req('/admin/backup/descargar', { cookie });
+  assert.equal(dl.statusCode, 200);
+  assert.match(dl.headers['content-disposition'], /tagflow-backup-.*\.db/);
+  const magic = Buffer.from('SQLite format 3\u0000');
+  assert.ok(dl.rawPayload.subarray(0, 16).equals(magic), 'el fichero es SQLite');
+  assert.ok(dl.rawPayload.length > 2000);
+
+  // 4. Se altera la base de datos actual (tag extra y borrado del primero).
+  const extra = models.createTag({ nombre: 'Extra', tipo: 'qr', modo: 'desactivado', estado: 'activo' });
+  models.deleteTag(a.id);
+  assert.equal(count('tags'), antes.tags); // b + Extra
+
+  // 5. Restaurar la copia devuelve los datos de la copia: Extra desaparece, Backup A vuelve.
+  const up = await rawReq('/admin/backup/restaurar', {
+    cookie,
+    buffer: Buffer.from(dl.rawPayload),
+    headers: { 'x-csrf-token': csrf, 'content-type': 'application/octet-stream' }
+  });
+  assert.equal(up.statusCode, 200);
+  const json = JSON.parse(up.body);
+  assert.equal(json.ok, true);
+  // La copia contenía a y b: tras restaurar vuelven ellos y desaparece Extra.
+  assert.equal(count('tags'), antes.tags, 'los tags de la copia sustituyen a los actuales');
+  assert.equal(count('scans'), antes.scans, 'los escaneos de la copia sustituyen a los actuales');
+  assert.ok(models.getTagById(a.id), 'el tag borrado antes de restaurar vuelve a existir');
+  assert.equal(models.getTagById(a.id).urlDestino, 'https://a.example.com');
+  assert.equal(models.getTagById(b.id).modo, 'desactivado');
+  assert.equal(models.getTagById(extra.id), null, 'el tag creado después de la copia desaparece');
+
+  // Limpieza: se eliminan los tags propios para no afectar a los demás tests.
+  models.deleteTag(a.id);
+  models.deleteTag(b.id);
+  assert.equal(count('tags'), base.tags);
+});
+
+test('copia de seguridad: un fichero que no es SQLite se rechaza', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const page = await req('/admin/backup', { cookie });
+  const csrf = getCsrf(page.body);
+  const up = await rawReq('/admin/backup/restaurar', {
+    cookie,
+    buffer: Buffer.from('esto no es una base de datos sqlite'.repeat(20)),
+    headers: { 'x-csrf-token': csrf, 'content-type': 'application/octet-stream' }
+  });
+  assert.equal(up.statusCode, 400);
+  const json = JSON.parse(up.body);
+  assert.equal(json.ok, false);
 });
 
 test('logout cierra la sesión', async () => {

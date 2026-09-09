@@ -1,6 +1,8 @@
 'use strict';
+const fs = require('fs');
 const express = require('express');
 const archiver = require('archiver');
+const { backupToFile, restoreFromFile, isValidSqliteBuffer, tempPath } = require('../backup');
 const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl, fmtLocation, mapsUrl } = require('../helpers');
 const { buildWifiString } = require('../wifi');
 const { buildVCard } = require('../contact');
@@ -173,6 +175,59 @@ function createAdminRouter({ db, models, config, auth }) {
       zip.append(png, { name: `${nombreLimpio}-${tag.slug}.png` });
     }
     await zip.finalize();
+  }));
+
+  // Copia de seguridad: página, descarga del snapshot y restauración
+  router.get('/backup', (req, res) => {
+    const stats = {
+      tags: db.prepare('SELECT COUNT(*) AS c FROM tags').get().c,
+      scans: db.prepare('SELECT COUNT(*) AS c FROM scans').get().c,
+      pendientes: models.countTagsByModo('desactivado')
+    };
+    res.render('admin/backup', { title: 'Copia de seguridad', active: 'backup', stats });
+  });
+
+  // Descarga la base de datos completa como fichero .db (snapshot consistente)
+  router.get('/backup/descargar', wrap(async (req, res) => {
+    const tmp = tempPath('tagflow-backup');
+    try {
+      backupToFile(db, tmp);
+      const stamp = new Date().toISOString().replace(/[:T]/g, '-').replace(/\.\d{3}Z$/, '');
+      res.download(tmp, `tagflow-backup-${stamp}.db`, () => {
+        try { fs.unlinkSync(tmp); } catch (_) { /* noop */ }
+      });
+    } catch (err) {
+      try { fs.unlinkSync(tmp); } catch (_) { /* noop */ }
+      throw err;
+    }
+  }));
+
+  // Restaura los datos desde una copia subida (cuerpo crudo: application/octet-stream)
+  router.post('/backup/restaurar', express.raw({ type: () => true, limit: '100mb' }), wrap(async (req, res) => {
+    const body = req.body;
+    if (!isValidSqliteBuffer(body)) {
+      return res.status(400).json({ ok: false, error: 'El fichero no es una base de datos SQLite válida.' });
+    }
+    const tmp = tempPath('tagflow-restore');
+    fs.writeFileSync(tmp, body);
+    try {
+      const summary = restoreFromFile(db, tmp);
+      const restartHint = process.env.WIFI_SECRET || process.env.SESSION_SECRET
+        ? ''
+        : ' Si esta copia procede de otro equipo, reinicia la app una vez para recargar las claves de cifrado.';
+      req.session.flash = {
+        type: 'success',
+        msg: `Copia restaurada: ${summary.tags} ${summary.tags === 1 ? 'tag' : 'tags'} y ${summary.scans} ${summary.scans === 1 ? 'escaneo' : 'escaneos'}.${restartHint}`
+      };
+      res.json({ ok: true, summary });
+    } catch (err) {
+      const error = err.code === 'NOT_TAGFLOW'
+        ? err.message
+        : `No se pudo restaurar la copia: ${err.message}`;
+      res.status(400).json({ ok: false, error });
+    } finally {
+      try { fs.unlinkSync(tmp); } catch (_) { /* noop */ }
+    }
   }));
 
   // Crear

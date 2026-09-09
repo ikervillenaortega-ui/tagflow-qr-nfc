@@ -172,6 +172,20 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .scan-loc { color: var(--text); font-weight: 600; }
 .scan-map { margin-left: 6px; font-size: 12px; }
 
+/* ===== Copia de seguridad ===== */
+.backup-restore { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.backup-file-pick {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1.5px dashed var(--border); border-radius: 10px; padding: 10px 14px;
+  background: var(--bg); cursor: pointer; max-width: 100%;
+}
+.backup-file-pick:hover { border-color: var(--primary); }
+.backup-file-pick input[type="file"] { display: none; }
+.backup-file-pick span { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+#backup-status { width: 100%; margin: 6px 0 0; font-size: 13px; }
+#backup-status.backup-ok { color: var(--ok); font-weight: 600; }
+#backup-status.backup-err { color: var(--danger); font-weight: 600; }
+
 /* ===== Login ===== */
 .login-body {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;

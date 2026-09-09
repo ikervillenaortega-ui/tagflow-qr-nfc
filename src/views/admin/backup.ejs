@@ -1,0 +1,45 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1>Copia de seguridad</h1>
+  <a class="link" href="/admin/tags">← Volver al listado</a>
+</section>
+
+<div class="stat-cards">
+  <div class="stat-card"><span class="stat-num"><%= stats.tags %></span><span class="stat-label">Tags</span></div>
+  <div class="stat-card"><span class="stat-num"><%= stats.scans %></span><span class="stat-label">Escaneos</span></div>
+  <div class="stat-card"><span class="stat-num"><%= stats.pendientes %></span><span class="stat-label">Sin configurar</span></div>
+</div>
+
+<section class="panel">
+  <h2>1 · Descargar copia de seguridad</h2>
+  <p class="muted">
+    Descarga la base de datos completa (fichero <code>.db</code>): Tags con su configuración,
+    escaneos con su ubicación y las claves de cifrado. Guárdala en un sitio seguro
+    (pendrive, nube…). <strong>La web de Render borra los datos en cada despliegue</strong>:
+    con esta copia puedes recuperarlo todo en cualquier momento.
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/admin/backup/descargar">⬇ Descargar copia de seguridad</a>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>2 · Restaurar una copia</h2>
+  <p class="muted">
+    <strong>Sustituye los datos actuales</strong> (Tags, escaneos y ubicaciones) por los de la copia
+    seleccionada. No se cierra tu sesión ni se cambia el usuario del panel.
+  </p>
+  <div class="backup-restore" id="backup-restore" data-csrf="<%= csrfToken %>">
+    <label class="backup-file-pick">
+      <input type="file" id="backup-file" accept=".db,application/x-sqlite3,application/octet-stream">
+      <span id="backup-file-name" class="muted">Elige un fichero <code>.db</code> de TagFlow…</span>
+    </label>
+    <button type="button" class="btn btn-primary" id="backup-restore-btn" disabled>Restaurar copia</button>
+    <p id="backup-status" class="muted"></p>
+  </div>
+  <p class="muted" style="margin-top: 0.8rem;">
+    Si la copia procede de otro equipo y contiene códigos WiFi cifrados, reinicia la app una vez
+    tras restaurar para que cargue la clave de cifrado de la copia.
+  </p>
+</section>
+<%- include('partials/footer') %>

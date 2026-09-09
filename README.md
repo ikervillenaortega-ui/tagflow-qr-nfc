@@ -92,6 +92,23 @@ El panel permite el flujo típico de vender QR/NFC genéricos y configurarlos de
 
 El dashboard muestra un aviso con el número de Tags sin configurar y el acceso directo al ZIP.
 
+## Copias de seguridad
+
+El panel incluye una página **«Copia de seguridad»** (`/admin/backup`):
+
+- **Descargar copia**: baja la base de datos completa como fichero `.db` (snapshot consistente
+  con `VACUUM INTO`, sin detener el servidor). Incluye Tags, escaneos con su ubicación y las
+  claves de cifrado.
+- **Restaurar**: sube un fichero `.db` de TagFlow y sustituye los Tags, escaneos y claves
+  actuales por los de la copia (sin reiniciar el proceso ni cerrar la sesión). Se ignoran las
+  diferencias de esquema con copias antiguas.
+
+Especialmente útil con hosts de disco efímero (p. ej. el plan gratis de Render, que **borra la
+base de datos en cada despliegue**): descarga una copia tras cada tanda de trabajo y restáurala
+si un despliegue la resetea, o para mover los datos a otro servidor. Las tablas `users` y
+`sessions` no se restauran (nunca te deja fuera del panel); si la copia procede de otro equipo
+con códigos WiFi cifrados, reinicia la app una vez tras restaurar para recargar la clave.
+
 ## QR y NFC
 
 - El QR estándar del Tag codifica la **URL fija** (`https://tudominio.com/t/{slug}`): imprímelo una vez y cambia el destino desde el panel.
