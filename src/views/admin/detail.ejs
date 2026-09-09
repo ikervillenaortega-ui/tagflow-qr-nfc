@@ -2,6 +2,9 @@
 <section class="page-head">
   <h1><%= tag.nombre %></h1>
   <div class="page-actions">
+    <% if (tag.modo === 'desactivado') { %>
+      <a class="btn btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a>
+    <% } %>
     <a class="btn" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
     <form method="post" action="/admin/tags/<%= tag.id %>/estado" class="inline-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -54,7 +57,7 @@
       <% } %>
     <% } else { %>
       <dt>Destino</dt>
-      <dd class="muted">Este código muestra «aún no configurado».</dd>
+      <dd class="muted">Este código muestra «aún no configurado». Cuando lo vendas, usa <a class="link" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a> para poner el teléfono y el correo del comprador.</dd>
     <% } %>
     <dt>Soporte</dt>
     <dd><%= tag.tipo === 'ambos' ? 'QR + NFC' : tag.tipo.toUpperCase() %></dd>

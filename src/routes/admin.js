@@ -183,6 +183,7 @@ function createAdminRouter({ db, models, config, auth }) {
       tag: null,
       errors: [],
       values: {},
+      preselectModo: null,
       slugPreview: 'tu-slug'
     });
   });
@@ -196,6 +197,7 @@ function createAdminRouter({ db, models, config, auth }) {
         tag: null,
         errors,
         values: req.body || {},
+        preselectModo: null,
         slugPreview: 'tu-slug'
       });
     }
@@ -210,6 +212,7 @@ function createAdminRouter({ db, models, config, auth }) {
           tag: null,
           errors: ['Ese slug ya está en uso. Elige otro o déjalo vacío para generar uno automático.'],
           values: req.body || {},
+          preselectModo: null,
           slugPreview: 'tu-slug'
         });
       }
@@ -244,16 +247,20 @@ function createAdminRouter({ db, models, config, auth }) {
     res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, contactoPayload, scans });
   });
 
-  // Editar
+  // Editar (con ?modo=contacto se preselecciona ese modo: flujo «configurar al vender»)
   router.get('/tags/:id/editar', (req, res) => {
     const tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
+    const preselectModo = ['url', 'wifi', 'contacto', 'desactivado'].includes(req.query.modo)
+      ? req.query.modo
+      : null;
     res.render('admin/form', {
       title: 'Editar Tag',
       active: 'tags',
       tag,
       errors: [],
       values: null,
+      preselectModo,
       slugPreview: tag.slug
     });
   });
@@ -272,6 +279,7 @@ function createAdminRouter({ db, models, config, auth }) {
         tag,
         errors,
         values: req.body || {},
+        preselectModo: null,
         slugPreview: tag.slug
       });
     }

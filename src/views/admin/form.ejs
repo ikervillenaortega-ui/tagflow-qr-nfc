@@ -35,7 +35,7 @@
   <fieldset>
     <legend>Modo de destino</legend>
     <div class="modo-cards">
-      <% const modoSel = values ? values.modo : (tag ? tag.modo : 'desactivado'); %>
+      <% const modoSel = values ? values.modo : (preselectModo || (tag ? tag.modo : 'desactivado')); %>
       <label class="modo-card">
         <input type="radio" name="modo" value="url" <%= modoSel === 'url' ? 'checked' : '' %>>
         <strong>URL</strong>

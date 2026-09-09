@@ -12,7 +12,7 @@
 
 <% if (pendientes > 0) { %>
   <div class="banner-pendientes">
-    <strong><%= pendientes %></strong> <%= pendientes === 1 ? 'tag sin configurar' : 'tags sin configurar' %> — descarga sus QR de golpe o asígnales destino desde «Ver».
+    <strong><%= pendientes %></strong> <%= pendientes === 1 ? 'tag sin configurar' : 'tags sin configurar' %> — descarga sus QR de golpe o configura cada uno con «Configurar (venta)» cuando lo vendas.
     <a class="link" href="/admin/tags/qr-pendientes.zip">Descargar ZIP de QR pendientes</a>
   </div>
 <% } %>
@@ -85,6 +85,9 @@
       <td class="num"><%= tag.escaneos %></td>
       <td class="num"><%= fmtDate(tag.fechaActualizacion) %></td>
       <td class="actions-col">
+        <% if (tag.modo === 'desactivado') { %>
+          <a class="btn btn-sm btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto" title="Poner el teléfono y el correo del comprador">Configurar (venta)</a>
+        <% } %>
         <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>">Ver</a>
         <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
         <form method="post" action="/admin/tags/<%= tag.id %>/eliminar" class="inline-form" data-confirm="¿Eliminar el tag «<%= tag.nombre %>»? Esta acción no se puede deshacer.">

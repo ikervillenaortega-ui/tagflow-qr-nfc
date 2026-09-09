@@ -341,6 +341,59 @@ test('modo Contacto: creación, página pública con tel/email y payload vCard',
   assert.equal(onlyTel.statusCode, 302);
 });
 
+test('flujo de venta: tag genérico → «Configurar (venta)» → modo Contacto con datos del comprador', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Generar stock genérico (desactivado)
+  const bulkPage = await get('/admin/tags/masivo');
+  const csrfBulk = getCsrf(bulkPage.body);
+  await post('/admin/tags/masivo', { _csrf: csrfBulk, cantidad: '1', prefijo: 'Venta', tipo: 'ambos' });
+  const stock = models.listTagsByModo('desactivado');
+  assert.equal(stock.length, 1);
+
+  // 2. El dashboard ofrece «Configurar (venta)» para los tags sin configurar
+  const dash = await get('/admin/tags');
+  assert.equal(dash.statusCode, 200);
+  assert.match(dash.body, /Configurar \(venta\)/);
+  assert.ok(dash.body.includes(`/admin/tags/${stock[0].id}/editar?modo=contacto`));
+
+  // 3. El enlace abre el formulario con el modo Contacto preseleccionado
+  const editPage = await get(`/admin/tags/${stock[0].id}/editar?modo=contacto`);
+  assert.equal(editPage.statusCode, 200);
+  assert.match(editPage.body, /value="contacto" checked/);
+  assert.match(editPage.body, /Datos de contacto/);
+
+  // 4. Guardar teléfono y correo del comprador → el mismo QR pasa a modo Contacto
+  const csrfEdit = getCsrf(editPage.body);
+  const saveRes = await post(`/admin/tags/${stock[0].id}`, {
+    _csrf: csrfEdit,
+    nombre: 'Cliente María',
+    tipo: 'ambos',
+    modo: 'contacto',
+    contacto_telefono: '+34 611 222 333',
+    contacto_email: 'maria@correo.com',
+    estado: 'activo'
+  });
+  assert.equal(saveRes.statusCode, 302);
+  const vendido = models.getTagById(stock[0].id);
+  assert.equal(vendido.modo, 'contacto');
+  assert.equal(vendido.contactoTelefono, '+34 611 222 333');
+  assert.equal(vendido.contactoEmail, 'maria@correo.com');
+  assert.equal(vendido.nombre, 'Cliente María');
+
+  // 5. El QR físico no cambia: el slug es el mismo y la página pública ya muestra el contacto
+  const pub = await req(`/t/${vendido.slug}`);
+  assert.equal(pub.statusCode, 200);
+  assert.match(pub.body, /\+34 611 222 333/);
+  assert.match(pub.body, /href="tel:/);
+
+  // 6. El dashboard ya no ofrece «Configurar (venta)» para el tag configurado
+  const dash2 = await get('/admin/tags');
+  assert.ok(!dash2.body.includes(`/admin/tags/${stock[0].id}/editar?modo=contacto`));
+});
+
 test('logout cierra la sesión', async () => {
   const { cookie } = await loginAs('admin', 'secret123');
   const formPage = await req('/admin/tags', { cookie });
