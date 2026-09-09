@@ -21,7 +21,9 @@ function createApp({ config, db }) {
   const app = express();
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
-  app.set('trust proxy', config.trustProxy ? 1 : false);
+  // Detrás de proxies encadenados (Render, Cloudflare, Nginx…) se confía en
+  // todos los saltos para que req.ip sea la IP real del cliente.
+  app.set('trust proxy', config.trustProxy ? true : false);
   app.disable('x-powered-by');
 
   app.use(

@@ -238,14 +238,14 @@ function createModels(db, config) {
     db.prepare('UPDATE tags SET estado = ?, fecha_actualizacion = ? WHERE id = ?').run(estado, nowIso(), id);
   }
 
-  function recordScan(tagId, req) {
+  function recordScan(tagId, req, clientIp) {
     const now = nowIso();
     db.prepare('UPDATE tags SET escaneos = escaneos + 1, ultimo_escaneo = ? WHERE id = ?').run(now, tagId);
     const info = db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash) VALUES (?, ?, ?, ?)').run(
       tagId,
       now,
       String(req.headers['user-agent'] || '').slice(0, 300),
-      hashIp(req.ip)
+      hashIp(clientIp || req.ip)
     );
     return info.lastInsertRowid;
   }

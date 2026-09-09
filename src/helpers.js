@@ -48,6 +48,18 @@ function hashIp(ip) {
   return crypto.createHash('sha256').update(String(ip || '')).digest('hex').slice(0, 16);
 }
 
+// IP real del cliente detrás de proxies encadenados (Render, Cloudflare, …):
+// la primera entrada de X-Forwarded-For es la original; si no viene, se usa la
+// dirección de socket (req.ip ya resuelta por Express).
+function clientIp(req) {
+  const xff = req.headers && req.headers['x-forwarded-for'];
+  if (typeof xff === 'string') {
+    const first = xff.split(',')[0].trim();
+    if (first) return first;
+  }
+  return (req.ip || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
+}
+
 // Texto legible de la ubicación de un escaneo: «Ciudad, Región, País».
 function fmtLocation(scan) {
   const parts = [scan && scan.city, scan && scan.region, scan && scan.country].filter(Boolean);
@@ -60,4 +72,4 @@ function mapsUrl(lat, lon) {
   return `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
 }
 
-module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, fmtLocation, mapsUrl };
+module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, clientIp, fmtLocation, mapsUrl };

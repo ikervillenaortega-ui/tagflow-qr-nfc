@@ -1,6 +1,6 @@
 'use strict';
 const express = require('express');
-const { detectOS, isHttpUrl } = require('../helpers');
+const { detectOS, isHttpUrl, clientIp } = require('../helpers');
 const { ipToLocation } = require('../geo');
 
 function createPublicRouter({ db, models, config }) {
@@ -32,9 +32,10 @@ function createPublicRouter({ db, models, config }) {
     // Registro del escaneo (contador + detalle para estadísticas). La ubicación
     // aproximada se resuelve por IP en segundo plano: no retrasa la respuesta y
     // si falla el escaneo queda igualmente registrado.
-    const scanId = models.recordScan(tag.id, req);
+    const ip = clientIp(req);
+    const scanId = models.recordScan(tag.id, req, ip);
     if (config.geoEnabled !== false) {
-      ipToLocation(req.ip)
+      ipToLocation(ip)
         .then(({ geo, note }) => models.updateScanLocation(scanId, geo, note))
         .catch(() => {});
     }
