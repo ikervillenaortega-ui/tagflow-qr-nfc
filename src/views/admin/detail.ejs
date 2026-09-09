@@ -99,12 +99,21 @@
 
 <section class="panel">
   <h2>Últimos escaneos</h2>
+  <p class="muted">Ubicación aproximada (ciudad según la IP del escáner). El escaneo de un QR no pide permiso de localización al visitante.</p>
   <% if (scans.length === 0) { %>
     <p class="muted">Todavía no hay escaneos registrados.</p>
   <% } else { %>
   <ul class="scan-list">
     <% for (const s of scans) { %>
-      <li><span class="num"><%= fmtDate(s.created_at) %></span> · <span class="muted"><%= s.label %></span></li>
+      <li>
+        <span class="num"><%= fmtDate(s.created_at) %></span> · <span class="muted"><%= s.label %></span>
+        <% if (s.location) { %>
+          · <span class="scan-loc">📍 <%= s.location %></span>
+          <% if (s.mapsUrl) { %> <a class="scan-map" href="<%= s.mapsUrl %>" target="_blank" rel="noopener">Ver en el mapa</a><% } %>
+        <% } else { %>
+          · <span class="muted">ubicación no disponible</span>
+        <% } %>
+      </li>
     <% } %>
   </ul>
   <% } %>

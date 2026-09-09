@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const archiver = require('archiver');
-const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl } = require('../helpers');
+const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl, fmtLocation, mapsUrl } = require('../helpers');
 const { buildWifiString } = require('../wifi');
 const { qrPng, qrSvg } = require('../qr');
 const { isValidSlug } = require('../slugs');
@@ -212,7 +212,9 @@ function createAdminRouter({ db, models, config, auth }) {
     tag.wifiPassword = tag.modo === 'wifi' ? models.decryptWifiPassword(tag) : null;
     const scans = models.recentScans(tag.id, 10).map((s) => ({
       created_at: s.created_at,
-      label: osLabel(detectOS(s.user_agent))
+      label: osLabel(detectOS(s.user_agent)),
+      location: fmtLocation(s),
+      mapsUrl: mapsUrl(s.lat, s.lon)
     }));
 
     res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, scans });

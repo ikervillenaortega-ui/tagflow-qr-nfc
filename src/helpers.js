@@ -48,4 +48,16 @@ function hashIp(ip) {
   return crypto.createHash('sha256').update(String(ip || '')).digest('hex').slice(0, 16);
 }
 
-module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp };
+// Texto legible de la ubicación de un escaneo: «Ciudad, Región, País».
+function fmtLocation(scan) {
+  const parts = [scan && scan.city, scan && scan.region, scan && scan.country].filter(Boolean);
+  return parts.length ? parts.join(', ') : '';
+}
+
+// Enlace a Google Maps desde unas coordenadas (si existen).
+function mapsUrl(lat, lon) {
+  if (lat == null || lon == null) return '';
+  return `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
+}
+
+module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, fmtLocation, mapsUrl };

@@ -241,17 +241,33 @@ function createModels(db, config) {
   function recordScan(tagId, req) {
     const now = nowIso();
     db.prepare('UPDATE tags SET escaneos = escaneos + 1, ultimo_escaneo = ? WHERE id = ?').run(now, tagId);
-    db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash) VALUES (?, ?, ?, ?)').run(
+    const info = db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash) VALUES (?, ?, ?, ?)').run(
       tagId,
       now,
       String(req.headers['user-agent'] || '').slice(0, 300),
       hashIp(req.ip)
     );
+    return info.lastInsertRowid;
+  }
+
+  // Guarda la ubicación aproximada resuelta por IP en un escaneo concreto.
+  function updateScanLocation(scanId, geo) {
+    if (!scanId || !geo) return;
+    db.prepare('UPDATE scans SET city = ?, region = ?, country = ?, lat = ?, lon = ? WHERE id = ?').run(
+      geo.city || null,
+      geo.region || null,
+      geo.country || null,
+      geo.lat != null ? geo.lat : null,
+      geo.lon != null ? geo.lon : null,
+      scanId
+    );
   }
 
   function recentScans(tagId, limit = 10) {
     return db
-      .prepare('SELECT created_at, user_agent FROM scans WHERE tag_id = ? ORDER BY id DESC LIMIT ?')
+      .prepare(
+        'SELECT created_at, user_agent, city, region, country, lat, lon FROM scans WHERE tag_id = ? ORDER BY id DESC LIMIT ?'
+      )
       .all(tagId, limit);
   }
 
@@ -282,6 +298,7 @@ function createModels(db, config) {
     deleteTag,
     setEstado,
     recordScan,
+    updateScanLocation,
     recentScans,
     findUserByUsername,
     createUser,

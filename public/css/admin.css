@@ -169,6 +169,8 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .scan-list { margin: 0; padding: 0; list-style: none; }
 .scan-list li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .scan-list li:last-child { border-bottom: 0; }
+.scan-loc { color: var(--text); font-weight: 600; }
+.scan-map { margin-left: 6px; font-size: 12px; }
 
 /* ===== Login ===== */
 .login-body {

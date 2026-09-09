@@ -58,6 +58,18 @@ const MIGRATIONS = [
         value TEXT NOT NULL
       );
     `
+  },
+  {
+    // Geolocalización de escaneos: ubicación aproximada resuelta por IP
+    // (ciudad/región/país + coordenadas), de forma opcional y best-effort.
+    version: 3,
+    sql: `
+      ALTER TABLE scans ADD COLUMN city TEXT;
+      ALTER TABLE scans ADD COLUMN region TEXT;
+      ALTER TABLE scans ADD COLUMN country TEXT;
+      ALTER TABLE scans ADD COLUMN lat REAL;
+      ALTER TABLE scans ADD COLUMN lon REAL;
+    `
   }
 ];
 

@@ -18,7 +18,8 @@ const TEST_CONFIG = {
   wifiSecret: 'test-wifi-secret-0123456789',
   cookieSecure: false,
   trustProxy: false,
-  sessionTtlMs: 60 * 60 * 1000
+  sessionTtlMs: 60 * 60 * 1000,
+  geoEnabled: false
 };
 
 let db;
@@ -341,4 +342,37 @@ test('la ruta ZIP exige sesión', async () => {
   const anon = await req('/admin/tags/qr-pendientes.zip');
   assert.equal(anon.statusCode, 302);
   assert.match(anon.headers.location, /\/admin\/login/);
+});
+
+test('el escaneo guarda ubicación y el detalle la muestra', async () => {
+  const tag = models.createTag({
+    nombre: 'Ubicación Test',
+    tipo: 'ambos',
+    modo: 'desactivado',
+    estado: 'activo'
+  });
+
+  // 1. Un escaneo real crea la fila en scans y devuelve su id.
+  const scanId = models.recordScan(tag.id, { ip: '::ffff:127.0.0.1', headers: { 'user-agent': 'curl/8' } });
+  assert.ok(scanId > 0);
+
+  // 2. Simula la geolocalización resuelta por IP (la red está desactivada en tests).
+  models.updateScanLocation(scanId, {
+    city: 'Madrid',
+    region: 'Comunidad de Madrid',
+    country: 'España',
+    lat: 40.4168,
+    lon: -3.7038
+  });
+  const scans = models.recentScans(tag.id, 5);
+  assert.equal(scans[0].city, 'Madrid');
+  assert.equal(scans[0].country, 'España');
+
+  // 3. El detalle del tag muestra la ubicación y el enlace al mapa.
+  const { cookie } = await loginAs('admin', 'secret123');
+  const detail = await req(`/admin/tags/${tag.id}`, { cookie });
+  assert.equal(detail.statusCode, 200);
+  assert.match(detail.body, /Madrid, Comunidad de Madrid, España/);
+  assert.match(detail.body, /Ver en el mapa/);
+  assert.match(detail.body, /google\.com\/maps/);
 });

@@ -46,5 +46,8 @@ module.exports = {
   // puede desactivarse explícitamente con COOKIE_SECURE=false / TRUST_PROXY=false.
   cookieSecure: env.COOKIE_SECURE === 'true' || (isProd && env.COOKIE_SECURE !== 'false'),
   trustProxy: env.TRUST_PROXY === 'true' || (isProd && env.TRUST_PROXY !== 'false'),
+  // Geolocalización aproximada de escaneos por IP. Puede desactivarse con
+  // GEO_ENABLED=false (p. ej. en entornos sin acceso a internet de salida).
+  geoEnabled: env.GEO_ENABLED !== 'false',
   sessionTtlMs: 7 * 24 * 60 * 60 * 1000
 };

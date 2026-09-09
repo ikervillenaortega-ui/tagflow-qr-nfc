@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const { detectOS, isHttpUrl } = require('../helpers');
+const { ipToLocation } = require('../geo');
 
 function createPublicRouter({ db, models, config }) {
   const router = express.Router();
@@ -28,8 +29,15 @@ function createPublicRouter({ db, models, config }) {
       });
     }
 
-    // Registro del escaneo (contador + detalle para estadísticas).
-    models.recordScan(tag.id, req);
+    // Registro del escaneo (contador + detalle para estadísticas). La ubicación
+    // aproximada se resuelve por IP en segundo plano: no retrasa la respuesta y
+    // si falla el escaneo queda igualmente registrado.
+    const scanId = models.recordScan(tag.id, req);
+    if (config.geoEnabled !== false) {
+      ipToLocation(req.ip)
+        .then((geo) => models.updateScanLocation(scanId, geo))
+        .catch(() => {});
+    }
 
     if (tag.estado !== 'activo' || tag.modo === 'desactivado') {
       return res.render('public/disabled', {
