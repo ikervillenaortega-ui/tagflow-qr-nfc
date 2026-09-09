@@ -34,7 +34,7 @@
   <h2>Configuración actual</h2>
   <dl class="kv">
     <dt>Modo</dt>
-    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : 'Desactivado') %></span></dd>
+    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : 'Desactivado')) %></span></dd>
     <% if (tag.modo === 'url') { %>
       <dt>Destino</dt>
       <dd><a href="<%= tag.urlDestino %>" target="_blank" rel="noopener"><%= tag.urlDestino %></a></dd>
@@ -43,6 +43,15 @@
       <dd><strong><%= tag.wifiSsid %></strong> · <span class="badge badge-modo"><%= tag.wifiSeguridad === 'nopass' ? 'Sin contraseña' : tag.wifiSeguridad %></span></dd>
       <dt>Contraseña</dt>
       <dd><span class="mono" id="wifi-password"><%= tag.wifiPassword %></span> <button type="button" class="btn btn-sm" data-copy="#wifi-password">Copiar</button></dd>
+    <% } else if (tag.modo === 'contacto') { %>
+      <% if (tag.contactoTelefono) { %>
+        <dt>Teléfono</dt>
+        <dd><a href="tel:<%= tag.contactoTelefono %>"><%= tag.contactoTelefono %></a></dd>
+      <% } %>
+      <% if (tag.contactoEmail) { %>
+        <dt>Correo</dt>
+        <dd><a href="mailto:<%= tag.contactoEmail %>"><%= tag.contactoEmail %></a></dd>
+      <% } %>
     <% } else { %>
       <dt>Destino</dt>
       <dd class="muted">Este código muestra «aún no configurado».</dd>
@@ -64,9 +73,16 @@
       <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=wifi">QR · WiFi directo (PNG)</a>
       <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=wifi">QR · WiFi directo (SVG)</a>
     <% } %>
+    <% if (tag.modo === 'contacto') { %>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=contacto">QR · Contacto (vCard, PNG)</a>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=contacto">QR · Contacto (vCard, SVG)</a>
+    <% } %>
   </div>
   <% if (tag.modo === 'wifi') { %>
     <p class="muted">El QR «WiFi directo» codifica el formato estándar <code>WIFI:…</code>: las cámaras de Android lo reconocen y conectan al instante, sin pasar por la web.</p>
+  <% } %>
+  <% if (tag.modo === 'contacto') { %>
+    <p class="muted">El QR «Contacto» codifica una vCard: las cámaras del móvil ofrecen guardar el contacto directamente, sin pasar por la web.</p>
   <% } %>
 </section>
 
@@ -85,12 +101,22 @@
     <button type="button" class="btn btn-sm" data-copy="#nfc-payload-wifi">Copiar</button>
   </div>
   <% } %>
+  <% if (tag.modo === 'contacto') { %>
+  <div class="copy-row">
+    <span class="label">Contacto (vCard)</span>
+    <code class="code-block" id="nfc-payload-contacto"><%= contactoPayload %></code>
+    <button type="button" class="btn btn-sm" data-copy="#nfc-payload-contacto">Copiar</button>
+  </div>
+  <% } %>
   <div id="nfc-write" hidden>
     <p class="muted">Web NFC API detectada. Acerca la etiqueta al móvil y pulsa escribir.</p>
     <div class="btn-row">
       <button type="button" class="btn" data-nfc-write="url">Escribir URL en etiqueta</button>
       <% if (tag.modo === 'wifi') { %>
         <button type="button" class="btn" data-nfc-write="wifi">Escribir WiFi en etiqueta</button>
+      <% } %>
+      <% if (tag.modo === 'contacto') { %>
+        <button type="button" class="btn" data-nfc-write="contacto">Escribir contacto en etiqueta</button>
       <% } %>
     </div>
     <p class="muted" id="nfc-status"></p>

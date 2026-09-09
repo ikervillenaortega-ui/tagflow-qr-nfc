@@ -3,6 +3,7 @@ const express = require('express');
 const archiver = require('archiver');
 const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl, fmtLocation, mapsUrl } = require('../helpers');
 const { buildWifiString } = require('../wifi');
+const { buildVCard } = require('../contact');
 const { qrPng, qrSvg } = require('../qr');
 const { isValidSlug } = require('../slugs');
 
@@ -24,7 +25,7 @@ function validateTagInput(body, opts = {}) {
   const tipo = ['qr', 'nfc', 'ambos'].includes(body.tipo) ? body.tipo : '';
   if (!tipo) errors.push('Selecciona un tipo de soporte.');
 
-  const modo = ['url', 'wifi', 'desactivado'].includes(body.modo) ? body.modo : '';
+  const modo = ['url', 'wifi', 'contacto', 'desactivado'].includes(body.modo) ? body.modo : '';
   if (!modo) errors.push('Selecciona un modo de destino.');
 
   const estado = ['activo', 'pausado'].includes(body.estado) ? body.estado : 'activo';
@@ -59,12 +60,31 @@ function validateTagInput(body, opts = {}) {
     wifi = { ssid, seguridad, password, keepPassword };
   }
 
+  let contacto = null;
+  if (modo === 'contacto') {
+    const telefono = String(body.contacto_telefono || '').trim();
+    const email = String(body.contacto_email || '').trim().toLowerCase();
+    if (!telefono && !email) {
+      errors.push('En modo Contacto, introduce al menos un teléfono o un correo electrónico.');
+    }
+    if (telefono && !/^\+?[0-9 ()\-./]{6,25}$/.test(telefono)) {
+      errors.push('El teléfono no parece válido (usa solo dígitos, espacios, +, - o paréntesis).');
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      errors.push('El correo electrónico no parece válido.');
+    }
+    if (email && email.length > 120) {
+      errors.push('El correo electrónico no puede superar los 120 caracteres.');
+    }
+    contacto = { telefono, email };
+  }
+
   let slug = String(body.slug || '').trim();
   if (slug && !isValidSlug(slug)) {
     errors.push('El slug solo puede contener letras, números, guiones o guiones bajos (3-64 caracteres).');
   }
 
-  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, slug } };
+  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, contacto, slug } };
 }
 
 function createAdminRouter({ db, models, config, auth }) {
@@ -209,6 +229,9 @@ function createAdminRouter({ db, models, config, auth }) {
     const wifiPayload = tag.modo === 'wifi'
       ? buildWifiString({ ssid: tag.wifiSsid, password: models.decryptWifiPassword(tag), security: tag.wifiSeguridad })
       : null;
+    const contactoPayload = tag.modo === 'contacto'
+      ? buildVCard({ nombre: tag.nombre, telefono: tag.contactoTelefono, email: tag.contactoEmail })
+      : null;
     tag.wifiPassword = tag.modo === 'wifi' ? models.decryptWifiPassword(tag) : null;
     const scans = models.recentScans(tag.id, 10).map((s) => ({
       created_at: s.created_at,
@@ -218,7 +241,7 @@ function createAdminRouter({ db, models, config, auth }) {
       note: s.geo_note
     }));
 
-    res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, scans });
+    res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, contactoPayload, scans });
   });
 
   // Editar
@@ -261,7 +284,9 @@ function createAdminRouter({ db, models, config, auth }) {
       urlDestino: data.modo === 'url' ? data.urlDestino : undefined,
       clearUrl: data.modo !== 'url',
       wifi: data.modo === 'wifi' ? data.wifi : undefined,
-      clearWifi: data.modo !== 'wifi'
+      clearWifi: data.modo !== 'wifi',
+      contacto: data.modo === 'contacto' ? data.contacto : undefined,
+      clearContacto: data.modo !== 'contacto'
     });
     req.session.flash = { type: 'success', msg: 'Tag actualizado correctamente.' };
     res.redirect(`/admin/tags/${id}`);
@@ -303,6 +328,9 @@ function createAdminRouter({ db, models, config, auth }) {
         security: tag.wifiSeguridad
       });
     }
+    if (kind === 'contacto' && tag.modo === 'contacto') {
+      return buildVCard({ nombre: tag.nombre, telefono: tag.contactoTelefono, email: tag.contactoEmail });
+    }
     return tagPublicUrl(publicBaseUrl(req, config), tag.slug);
   }
 
@@ -310,11 +338,17 @@ function createAdminRouter({ db, models, config, auth }) {
   router.get('/tags/:id/qr.png', wrap(async (req, res) => {
     const tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
-    const kind = req.query.payload === 'wifi' ? 'wifi' : 'url';
+    const kind = req.query.payload === 'wifi' ? 'wifi' : req.query.payload === 'contacto' ? 'contacto' : 'url';
     if (kind === 'wifi' && tag.modo !== 'wifi') {
       return res.status(400).render('admin/error', {
         status: 400,
         message: 'El payload WiFi solo está disponible cuando el Tag está en modo WiFi.'
+      });
+    }
+    if (kind === 'contacto' && tag.modo !== 'contacto') {
+      return res.status(400).render('admin/error', {
+        status: 400,
+        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto.'
       });
     }
     const png = await qrPng(qrPayload(tag, req, kind));
@@ -327,11 +361,17 @@ function createAdminRouter({ db, models, config, auth }) {
   router.get('/tags/:id/qr.svg', wrap(async (req, res) => {
     const tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
-    const kind = req.query.payload === 'wifi' ? 'wifi' : 'url';
+    const kind = req.query.payload === 'wifi' ? 'wifi' : req.query.payload === 'contacto' ? 'contacto' : 'url';
     if (kind === 'wifi' && tag.modo !== 'wifi') {
       return res.status(400).render('admin/error', {
         status: 400,
         message: 'El payload WiFi solo está disponible cuando el Tag está en modo WiFi.'
+      });
+    }
+    if (kind === 'contacto' && tag.modo !== 'contacto') {
+      return res.status(400).render('admin/error', {
+        status: 400,
+        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto.'
       });
     }
     const svg = await qrSvg(qrPayload(tag, req, kind));

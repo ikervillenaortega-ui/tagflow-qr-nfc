@@ -29,6 +29,7 @@
     <option value="">Modo: todos</option>
     <option value="url" <%= filters.modo === 'url' ? 'selected' : '' %>>URL</option>
     <option value="wifi" <%= filters.modo === 'wifi' ? 'selected' : '' %>>WiFi</option>
+    <option value="contacto" <%= filters.modo === 'contacto' ? 'selected' : '' %>>Contacto</option>
     <option value="desactivado" <%= filters.modo === 'desactivado' ? 'selected' : '' %>>Desactivado</option>
   </select>
   <select name="estado">
@@ -70,9 +71,9 @@
       </td>
       <td><span class="badge badge-tipo"><%= tag.tipo === 'ambos' ? 'QR + NFC' : tag.tipo.toUpperCase() %></span></td>
       <td>
-        <span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : 'Desactivado') %></span>
+        <span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : 'Desactivado')) %></span>
         <div class="tag-destino">
-          <% if (tag.modo === 'url') { %><%= tag.urlDestino %><% } else if (tag.modo === 'wifi') { %>WiFi: <strong><%= tag.wifiSsid %></strong><% } else { %>—<% } %>
+          <% if (tag.modo === 'url') { %><%= tag.urlDestino %><% } else if (tag.modo === 'wifi') { %>WiFi: <strong><%= tag.wifiSsid %></strong><% } else if (tag.modo === 'contacto') { %>📞 <%= tag.contactoTelefono || tag.contactoEmail %><% } else { %>—<% } %>
         </div>
       </td>
       <td>

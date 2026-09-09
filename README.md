@@ -70,13 +70,14 @@ test/              # tests con node:test (unitarios + integración)
 | `GET·POST /admin/tags/{id}` · `/editar` | Ver / editar Tag |
 | `POST /admin/tags/{id}/eliminar` | Eliminar Tag |
 | `POST /admin/tags/{id}/estado` | Activar / pausar |
-| `GET /admin/tags/{id}/qr.png?payload=url\|wifi` | Descargar QR PNG |
-| `GET /admin/tags/{id}/qr.svg?payload=url\|wifi` | Descargar QR SVG |
+| `GET /admin/tags/{id}/qr.png?payload=url\|wifi\|contacto` | Descargar QR PNG |
+| `GET /admin/tags/{id}/qr.svg?payload=url\|wifi\|contacto` | Descargar QR SVG |
 
 ## Comportamiento del endpoint público
 
 - **Modo `url`:** redirección 302 al destino configurado (302 y no 301 a propósito: el destino puede cambiar en cualquier momento y no queremos cachés eternas de proxies/navegadores).
 - **Modo `wifi`:** página ligera con SSID, contraseña (botón copiar) e instrucciones adaptadas al SO detectado por user-agent. En Android la cámara nativa ya conecta directamente con el QR «WiFi directo» del panel.
+- **Modo `contacto`:** página con el teléfono y el correo configurados, botones «Llamar» / «Enviar correo» (enlaces `tel:` y `mailto:`) y copiar al portapapeles. En el panel se genera además un **QR «Contacto»** con formato vCard (las cámaras del móvil ofrecen guardar el contacto directamente) y el payload vCard para programar en la etiqueta NFC.
 - **`desactivado` / pausado / inexistente:** página neutra «aún no configurado».
 - Cada escaneo incrementa el contador y guarda fecha, user-agent y un hash de la IP (nunca la IP en claro).
 - **Ubicación aproximada:** cada escaneo se geolocaliza por IP (ciudad/región/país + coordenadas) en segundo plano y sin pedir permisos al visitante. La página de detalle de cada Tag muestra la lista de escaneos con su ubicación y un enlace «Ver en el mapa». La IP real solo se envía al proveedor (ipwho.is, con freeipapi.com e ip-api.com de respaldo); en la base de datos solo queda la ubicación y un hash de la IP. Detrás de proxies encadenados (Render, Cloudflare…) se lee la primera entrada de `X-Forwarded-For` para obtener la IP real del cliente. Si la ubicación no se puede resolver (IP privada, proveedor sin respuesta) el panel muestra el motivo. Puede desactivarse con `GEO_ENABLED=false`.
@@ -87,7 +88,7 @@ El panel permite el flujo típico de vender QR/NFC genéricos y configurarlos de
 
 1. **«Generar varios»** crea de una vez entre 1 y 500 Tags genéricos en modo *Desactivado*, con nombres correlativos («Tag 1», «Tag 2»…) y cada uno con su URL fija única.
 2. **«Descargar QR pendientes (ZIP)»** baja en un solo ZIP los PNG de todos los Tags aún sin configurar, listos para imprimir y pegar en el producto.
-3. Cuando vendes uno, lo buscas en el listado y le asignas el destino (URL o WiFi): el QR/NFC físico no cambia nunca.
+3. Cuando vendes uno, lo buscas en el listado y le asignas el destino (URL, WiFi o Contacto): el QR/NFC físico no cambia nunca.
 
 El dashboard muestra un aviso con el número de Tags sin configurar y el acceso directo al ZIP.
 
@@ -95,7 +96,7 @@ El dashboard muestra un aviso con el número de Tags sin configurar y el acceso 
 
 - El QR estándar del Tag codifica la **URL fija** (`https://tudominio.com/t/{slug}`): imprímelo una vez y cambia el destino desde el panel.
 - En modo WiFi el panel genera además un **QR «WiFi directo»** con el formato estándar `WIFI:T:WPA;S:red;P:clave;;` que las cámaras de Android reconocen de forma nativa (conexión instantánea, sin pasar por la web). En iOS no existe API pública para conexión automática: la página muestra la red y la contraseña.
-- **Payload NFC:** el panel muestra la URL exacta a programar (recomendado) y, en modo WiFi, el string `WIFI:` como texto NDEF. Si el navegador soporta **Web NFC API** (Chrome en Android), el botón «Escribir en etiqueta» programa la etiqueta directamente.
+- **Payload NFC:** el panel muestra la URL exacta a programar (recomendado), en modo WiFi el string `WIFI:` como texto NDEF y en modo Contacto la **vCard** (la mayoría de apps NFC y navegadores la reconocen como contacto). Si el navegador soporta **Web NFC API** (Chrome en Android), el botón «Escribir en etiqueta» programa la etiqueta directamente.
 
 ## Seguridad
 

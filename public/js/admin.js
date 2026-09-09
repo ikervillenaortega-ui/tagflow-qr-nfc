@@ -31,6 +31,7 @@
     var isEdit = form.dataset.mode === 'edit';
     var urlField = form.querySelector('.field-url');
     var wifiField = form.querySelector('.field-wifi');
+    var contactoField = form.querySelector('.field-contacto');
     var ssidInput = form.querySelector('input[name="wifi_ssid"]');
     var pwInput = form.querySelector('input[name="wifi_password"]');
     var secSelect = form.querySelector('select[name="wifi_seguridad"]');
@@ -58,6 +59,7 @@
       // así que un '' (sin override inline) los dejaría ocultos para siempre.
       if (urlField) urlField.style.display = modo === 'url' ? 'block' : 'none';
       if (wifiField) wifiField.style.display = modo === 'wifi' ? 'block' : 'none';
+      if (contactoField) contactoField.style.display = modo === 'contacto' ? 'block' : 'none';
       if (ssidInput) ssidInput.required = modo === 'wifi';
       if (secSelect) secSelect.required = modo === 'wifi';
       if (pwInput) {

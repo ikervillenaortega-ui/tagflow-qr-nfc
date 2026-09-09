@@ -79,6 +79,41 @@ const MIGRATIONS = [
     sql: `
       ALTER TABLE scans ADD COLUMN geo_note TEXT;
     `
+  },
+  {
+    // Modo Contacto: teléfono y correo que se muestran al escanear el QR/NFC.
+    // SQLite no permite modificar un CHECK con ALTER, así que se reconstruye la
+    // tabla tags con el nuevo CHECK que admite el modo 'contacto'.
+    version: 5,
+    sql: `
+      CREATE TABLE tags_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'qr' CHECK (tipo IN ('qr','nfc','ambos')),
+        modo TEXT NOT NULL DEFAULT 'desactivado' CHECK (modo IN ('url','wifi','contacto','desactivado')),
+        url_destino TEXT,
+        wifi_ssid TEXT,
+        wifi_password_enc TEXT,
+        wifi_seguridad TEXT CHECK (wifi_seguridad IN ('WPA','WEP','nopass')),
+        contacto_telefono TEXT,
+        contacto_email TEXT,
+        escaneos INTEGER NOT NULL DEFAULT 0,
+        ultimo_escaneo TEXT,
+        estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','pausado')),
+        fecha_creacion TEXT NOT NULL,
+        fecha_actualizacion TEXT NOT NULL
+      );
+
+      INSERT INTO tags_new (id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+        wifi_seguridad, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion)
+        SELECT id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+          wifi_seguridad, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion
+        FROM tags;
+
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+    `
   }
 ];
 
@@ -88,8 +123,13 @@ function openDb(dbPath) {
   }
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  // Durante las migraciones se desactiva foreign_keys (no se puede cambiar
+  // dentro de una transacción): la reconstrucción de la tabla tags (migración 5)
+  // necesita borrar la tabla padre sin que el DELETE implícito falle por las
+  // filas de scans que la referencian. Se reactivan al terminar.
+  db.pragma('foreign_keys = OFF');
   migrate(db);
+  db.pragma('foreign_keys = ON');
   return db;
 }
 

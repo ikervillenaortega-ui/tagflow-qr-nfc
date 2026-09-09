@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; color: #1c2333; display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
+    .card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: 24px; }
+    .icon { font-size: 40px; }
+    h1 { font-size: 20px; margin: 12px 0 4px; word-break: break-word; }
+    .sub { color: #64748b; margin: 0 0 16px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+    .val { font-size: 16px; font-weight: 600; word-break: break-all; }
+    .row a { text-decoration: none; }
+    .actions { display: flex; gap: 8px; }
+    .actions button, .actions a { background: #2563eb; color: #fff; border: 0; border-radius: 10px; padding: 0 12px; font-weight: 600; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; }
+    .actions a.ghost { background: #e2e8f0; color: #334155; }
+    .ok { display: none; color: #15803d; font-weight: 600; font-size: 13px; margin: 6px 2px 0; }
+    .note { font-size: 12px; color: #94a3b8; margin-top: 16px; line-height: 1.5; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f172a; color: #e2e8f0; }
+      .card { background: #1e293b; }
+      .row { background: #0f172a; border-color: #334155; }
+      .sub, .note { color: #94a3b8; }
+      .actions a.ghost { background: #334155; color: #cbd5e1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📇</div>
+    <h1><%= nombre %></h1>
+    <p class="sub">Escanea este código para guardar o contactar con nosotros.</p>
+    <% if (contacto.telefono) { %>
+    <div class="row">
+      <div>
+        <div class="val"><a href="tel:<%= urlenc(contacto.telefono) %>"><%= contacto.telefono %></a></div>
+      </div>
+      <div class="actions">
+        <a href="tel:<%= urlenc(contacto.telefono) %>">📞 Llamar</a>
+        <button type="button" class="ghost" data-copy-val="<%= contacto.telefono %>">Copiar</button>
+      </div>
+    </div>
+    <p class="ok" id="copied-tel">✓ Teléfono copiado</p>
+    <% } %>
+    <% if (contacto.email) { %>
+    <div class="row">
+      <div>
+        <div class="val"><a href="mailto:<%= urlenc(contacto.email) %>"><%= contacto.email %></a></div>
+      </div>
+      <div class="actions">
+        <a href="mailto:<%= urlenc(contacto.email) %>">✉️ Email</a>
+        <button type="button" class="ghost" data-copy-val="<%= contacto.email %>">Copiar</button>
+      </div>
+    </div>
+    <p class="ok" id="copied-email">✓ Correo copiado</p>
+    <% } %>
+    <p class="note">Pulsa sobre el teléfono o el correo para llamar o escribir directamente, o usa «Copiar».</p>
+  </div>
+  <script src="/js/public.js?v=<%= v %>"></script>
+</body>
+</html>

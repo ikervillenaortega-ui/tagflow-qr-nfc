@@ -47,6 +47,11 @@
         <span>Muestra los datos de la red y permite conectarse.</span>
       </label>
       <label class="modo-card">
+        <input type="radio" name="modo" value="contacto" <%= modoSel === 'contacto' ? 'checked' : '' %>>
+        <strong>Contacto</strong>
+        <span>Muestra teléfono y correo para llamar o escribir.</span>
+      </label>
+      <label class="modo-card">
         <input type="radio" name="modo" value="desactivado" <%= modoSel === 'desactivado' ? 'checked' : '' %>>
         <strong>Desactivado</strong>
         <span>Página neutra: «aún no configurado».</span>
@@ -85,6 +90,21 @@
       <summary>Vista previa del payload WiFi</summary>
       <code class="code-block" id="wifi-preview">WIFI:T:WPA;S:…;P:…;;</code>
     </details>
+  </fieldset>
+
+  <fieldset class="field-contacto">
+    <legend>Datos de contacto</legend>
+    <div class="form-grid">
+      <label>Teléfono
+        <input type="tel" name="contacto_telefono" maxlength="25" value="<%= values ? values.contacto_telefono : (tag ? tag.contactoTelefono : '') %>" placeholder="+34 600 000 000">
+        <small>Se mostrará con botón «Llamar».</small>
+      </label>
+      <label>Correo electrónico
+        <input type="email" name="contacto_email" maxlength="120" value="<%= values ? values.contacto_email : (tag ? tag.contactoEmail : '') %>" placeholder="hola@ejemplo.com">
+        <small>Se mostrará con botón «Enviar correo».</small>
+      </label>
+    </div>
+    <p class="muted">Al menos uno de los dos es obligatorio. Al escanear el QR/NFC se mostrarán con botones de llamar, escribir y copiar.</p>
   </fieldset>
 
   <fieldset>

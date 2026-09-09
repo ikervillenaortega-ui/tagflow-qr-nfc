@@ -4,12 +4,13 @@ const { encryptText, decryptText } = require('./crypto');
 const { hashIp } = require('./helpers');
 
 const TIPOS = ['qr', 'nfc', 'ambos'];
-const MODOS = ['url', 'wifi', 'desactivado'];
+const MODOS = ['url', 'wifi', 'contacto', 'desactivado'];
 const ESTADOS = ['activo', 'pausado'];
 const SEGURIDADES = ['WPA', 'WEP', 'nopass'];
 
 const TAG_COLUMNS = `id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
-  wifi_seguridad, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
+  wifi_seguridad, contacto_telefono, contacto_email, escaneos, ultimo_escaneo, estado,
+  fecha_creacion, fecha_actualizacion`;
 
 function nowIso() {
   return new Date().toISOString();
@@ -27,6 +28,8 @@ function rowToTag(row) {
     wifiSsid: row.wifi_ssid,
     wifiPasswordEnc: row.wifi_password_enc,
     wifiSeguridad: row.wifi_seguridad,
+    contactoTelefono: row.contacto_telefono,
+    contactoEmail: row.contacto_email,
     escaneos: row.escaneos,
     ultimoEscaneo: row.ultimo_escaneo,
     estado: row.estado,
@@ -155,8 +158,9 @@ function createModels(db, config) {
     const now = nowIso();
     const stmt = db.prepare(
       `INSERT INTO tags
-         (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad, estado, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
+          contacto_telefono, contacto_email, estado, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     try {
       const info = stmt.run(
@@ -168,6 +172,8 @@ function createModels(db, config) {
         input.wifi ? input.wifi.ssid : null,
         wifiPasswordEnc,
         input.wifi ? input.wifi.seguridad : null,
+        input.contacto ? input.contacto.telefono : null,
+        input.contacto ? input.contacto.email : null,
         input.estado,
         now,
         now
@@ -209,6 +215,14 @@ function createModels(db, config) {
     }
     if (input.clearUrl) {
       sets.push('url_destino = NULL');
+    }
+    if (input.contacto !== undefined) {
+      sets.push('contacto_telefono = @contacto_telefono', 'contacto_email = @contacto_email');
+      params.contacto_telefono = (input.contacto && input.contacto.telefono) || null;
+      params.contacto_email = (input.contacto && input.contacto.email) || null;
+    }
+    if (input.clearContacto) {
+      sets.push('contacto_telefono = NULL', 'contacto_email = NULL');
     }
     if (input.clearWifi) {
       sets.push('wifi_ssid = NULL', 'wifi_password_enc = NULL', 'wifi_seguridad = NULL');

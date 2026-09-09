@@ -259,6 +259,88 @@ test('validación rechaza URL inválida y WPA corto', async () => {
   assert.match(badWifi.body, /entre 8 y 63/);
 });
 
+test('modo Contacto: creación, página pública con tel/email y payload vCard', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Crear tag en modo Contacto (teléfono + correo)
+  const formPage = await get('/admin/tags/nuevo');
+  const csrf = getCsrf(formPage.body);
+  const createRes = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Atención al cliente',
+    tipo: 'ambos',
+    modo: 'contacto',
+    contacto_telefono: '+34 600 123 456',
+    contacto_email: 'hola@ejemplo.com',
+    estado: 'activo'
+  });
+  assert.equal(createRes.statusCode, 302);
+  const id = Number(createRes.headers.location.split('/').pop());
+  const tag = models.getTagById(id);
+  assert.equal(tag.modo, 'contacto');
+  assert.equal(tag.contactoTelefono, '+34 600 123 456');
+  assert.equal(tag.contactoEmail, 'hola@ejemplo.com');
+
+  // 2. Página pública: teléfono con enlace tel: y correo con mailto:
+  const pub = await req(`/t/${tag.slug}`);
+  assert.equal(pub.statusCode, 200);
+  assert.match(pub.body, /\+34 600 123 456/);
+  assert.match(pub.body, /hola@ejemplo\.com/);
+  assert.match(pub.body, /href="tel:/);
+  assert.match(pub.body, /href="mailto:/);
+  assert.match(pub.body, /data-copy-val/);
+
+  // 3. Detalle: muestra los datos y el payload vCard para NFC
+  const detail = await get(`/admin/tags/${id}`);
+  assert.equal(detail.statusCode, 200);
+  assert.match(detail.body, /BEGIN:VCARD/);
+  assert.match(detail.body, /FN:Atención al cliente/);
+  assert.match(detail.body, /TEL;TYPE=CELL:\+34600123456/);
+  assert.match(detail.body, /EMAIL:hola@ejemplo\.com/);
+
+  // 4. QR de contacto (vCard) descargable
+  const qr = await get(`/admin/tags/${id}/qr.png?payload=contacto`);
+  assert.equal(qr.statusCode, 200);
+  assert.equal(qr.headers['content-type'], 'image/png');
+  assert.ok(qr.rawPayload.length > 500);
+
+  // 5. Validación: sin datos de contacto → 400
+  const badEmpty = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Vacío',
+    tipo: 'qr',
+    modo: 'contacto',
+    estado: 'activo'
+  });
+  assert.equal(badEmpty.statusCode, 400);
+  assert.match(badEmpty.body, /al menos un teléfono o un correo/);
+
+  // 6. Validación: correo inválido → 400
+  const badEmail = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Correo malo',
+    tipo: 'qr',
+    modo: 'contacto',
+    contacto_email: 'no-es-un-correo',
+    estado: 'activo'
+  });
+  assert.equal(badEmail.statusCode, 400);
+  assert.match(badEmail.body, /no parece válido/);
+
+  // 7. Solo teléfono es suficiente
+  const onlyTel = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Solo teléfono',
+    tipo: 'nfc',
+    modo: 'contacto',
+    contacto_telefono: '600000000',
+    estado: 'activo'
+  });
+  assert.equal(onlyTel.statusCode, 302);
+});
+
 test('logout cierra la sesión', async () => {
   const { cookie } = await loginAs('admin', 'secret123');
   const formPage = await req('/admin/tags', { cookie });

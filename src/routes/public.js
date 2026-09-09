@@ -72,6 +72,18 @@ function createPublicRouter({ db, models, config }) {
       });
     }
 
+    if (tag.modo === 'contacto') {
+      const contacto = {
+        telefono: tag.contactoTelefono || '',
+        email: tag.contactoEmail || ''
+      };
+      return res.render('public/contact', {
+        title: `Contacto · ${tag.nombre}`,
+        nombre: tag.nombre,
+        contacto
+      });
+    }
+
     return res.render('public/disabled', {
       title: 'Código sin configurar',
       message: 'El propietario aún no ha asignado un destino a este código. Vuelve a intentarlo más tarde.'

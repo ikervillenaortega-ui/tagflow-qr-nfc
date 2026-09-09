@@ -39,6 +39,13 @@
     });
   }
 
+  // Copiar un valor (p. ej. teléfono o correo en la página de contacto).
+  document.querySelectorAll('[data-copy-val]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      copyText(btn.dataset.copyVal, btn, null);
+    });
+  });
+
   function esc(s) {
     return String(s)
       .replace(/&/g, '&amp;')
