@@ -8,7 +8,7 @@
 const GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
 const cache = new Map(); // ip -> { city, region, country, lat, lon, ts }
 
-async function fetchJson(url, timeoutMs = 4000) {
+async function fetchJson(url, timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -45,7 +45,7 @@ async function ipToLocation(ip) {
 
   let result = null;
 
-  // Proveedor principal: ipwho.is (gratuito, sin clave, HTTPS).
+  // Proveedor principal: ipwho.is (gratuito, sin clave, HTTPS, uso comercial permitido).
   const data = await fetchJson(`https://ipwho.is/${encodeURIComponent(clean)}`);
   if (data && data.success) {
     result = {
@@ -58,17 +58,31 @@ async function ipToLocation(ip) {
   }
 
   if (!result) {
-    // Respaldo: ip-api.com (gratuito, sin clave, 45 req/min).
-    const alt = await fetchJson(
+    // Respaldo 1: freeipapi.com (gratuito, sin clave, HTTPS; admite IPs de datacenter).
+    const alt = await fetchJson(`https://freeipapi.com/api/json/${encodeURIComponent(clean)}`);
+    if (alt && alt.ipAddress && typeof alt.latitude === 'number') {
+      result = {
+        city: alt.cityName || null,
+        region: alt.regionName || null,
+        country: alt.countryName || null,
+        lat: alt.latitude,
+        lon: alt.longitude
+      };
+    }
+  }
+
+  if (!result) {
+    // Respaldo 2: ip-api.com (gratuito, sin clave, 45 req/min, solo uso personal).
+    const alt2 = await fetchJson(
       `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,city,regionName,country,lat,lon`
     );
-    if (alt && alt.status === 'success') {
+    if (alt2 && alt2.status === 'success') {
       result = {
-        city: alt.city || null,
-        region: alt.regionName || null,
-        country: alt.country || null,
-        lat: typeof alt.lat === 'number' ? alt.lat : null,
-        lon: typeof alt.lon === 'number' ? alt.lon : null
+        city: alt2.city || null,
+        region: alt2.regionName || null,
+        country: alt2.country || null,
+        lat: typeof alt2.lat === 'number' ? alt2.lat : null,
+        lon: typeof alt2.lon === 'number' ? alt2.lon : null
       };
     }
   }
