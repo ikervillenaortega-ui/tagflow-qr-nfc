@@ -70,6 +70,15 @@ const MIGRATIONS = [
       ALTER TABLE scans ADD COLUMN lat REAL;
       ALTER TABLE scans ADD COLUMN lon REAL;
     `
+  },
+  {
+    // Nota explicativa cuando no se pudo resolver la ubicación de un escaneo
+    // (IP privada, proveedor geo sin respuesta, etc.), para que el panel muestre
+    // el motivo en vez de un genérico «no disponible».
+    version: 4,
+    sql: `
+      ALTER TABLE scans ADD COLUMN geo_note TEXT;
+    `
   }
 ];
 

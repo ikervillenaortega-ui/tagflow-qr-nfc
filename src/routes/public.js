@@ -35,7 +35,7 @@ function createPublicRouter({ db, models, config }) {
     const scanId = models.recordScan(tag.id, req);
     if (config.geoEnabled !== false) {
       ipToLocation(req.ip)
-        .then((geo) => models.updateScanLocation(scanId, geo))
+        .then(({ geo, note }) => models.updateScanLocation(scanId, geo, note))
         .catch(() => {});
     }
 

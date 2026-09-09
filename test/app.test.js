@@ -364,15 +364,20 @@ test('el escaneo guarda ubicación y el detalle la muestra', async () => {
     lat: 40.4168,
     lon: -3.7038
   });
+  // 2b. Un escaneo sin ubicación guarda la nota con el motivo.
+  const scanId2 = models.recordScan(tag.id, { ip: '127.0.0.1', headers: { 'user-agent': 'curl/8' } });
+  models.updateScanLocation(scanId2, null, 'IP privada o local: imposible geolocalizar');
   const scans = models.recentScans(tag.id, 5);
-  assert.equal(scans[0].city, 'Madrid');
-  assert.equal(scans[0].country, 'España');
+  assert.equal(scans[1].city, 'Madrid');
+  assert.equal(scans[1].country, 'España');
+  assert.equal(scans[0].geo_note, 'IP privada o local: imposible geolocalizar');
 
-  // 3. El detalle del tag muestra la ubicación y el enlace al mapa.
+  // 3. El detalle del tag muestra la ubicación, el enlace al mapa y la nota del escaneo sin ubicación.
   const { cookie } = await loginAs('admin', 'secret123');
   const detail = await req(`/admin/tags/${tag.id}`, { cookie });
   assert.equal(detail.statusCode, 200);
   assert.match(detail.body, /Madrid, Comunidad de Madrid, España/);
   assert.match(detail.body, /Ver en el mapa/);
   assert.match(detail.body, /google\.com\/maps/);
+  assert.match(detail.body, /IP privada o local: imposible geolocalizar/);
 });

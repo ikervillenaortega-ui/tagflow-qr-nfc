@@ -33,11 +33,15 @@ function normalizeIp(ip) {
 }
 
 async function ipToLocation(ip) {
+  // Devuelve { geo, note }: geo con la ubicación (o null) y note con el motivo
+  // cuando no se pudo resolver, para mostrarlo en el panel.
   const clean = normalizeIp(ip);
-  if (!clean) return null;
+  if (!clean) return { geo: null, note: 'IP privada o local: imposible geolocalizar' };
 
   const cached = cache.get(clean);
-  if (cached && Date.now() - cached.ts < GEO_CACHE_TTL_MS) return cached;
+  if (cached && Date.now() - cached.ts < GEO_CACHE_TTL_MS) {
+    return cached.geo ? { geo: cached.geo, note: null } : { geo: null, note: cached.note };
+  }
 
   let result = null;
 
@@ -69,8 +73,12 @@ async function ipToLocation(ip) {
     }
   }
 
-  if (result) cache.set(clean, { ...result, ts: Date.now() });
-  return result;
+  if (result) {
+    cache.set(clean, { geo: result, note: null, ts: Date.now() });
+    return { geo: result, note: null };
+  }
+  cache.set(clean, { geo: null, note: 'El proveedor de geolocalización no respondió', ts: Date.now() });
+  return { geo: null, note: 'El proveedor de geolocalización no respondió' };
 }
 
 module.exports = { ipToLocation };

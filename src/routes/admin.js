@@ -214,7 +214,8 @@ function createAdminRouter({ db, models, config, auth }) {
       created_at: s.created_at,
       label: osLabel(detectOS(s.user_agent)),
       location: fmtLocation(s),
-      mapsUrl: mapsUrl(s.lat, s.lon)
+      mapsUrl: mapsUrl(s.lat, s.lon),
+      note: s.geo_note
     }));
 
     res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, scans });

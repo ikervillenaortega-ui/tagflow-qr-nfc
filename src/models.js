@@ -250,23 +250,28 @@ function createModels(db, config) {
     return info.lastInsertRowid;
   }
 
-  // Guarda la ubicación aproximada resuelta por IP en un escaneo concreto.
-  function updateScanLocation(scanId, geo) {
-    if (!scanId || !geo) return;
-    db.prepare('UPDATE scans SET city = ?, region = ?, country = ?, lat = ?, lon = ? WHERE id = ?').run(
-      geo.city || null,
-      geo.region || null,
-      geo.country || null,
-      geo.lat != null ? geo.lat : null,
-      geo.lon != null ? geo.lon : null,
-      scanId
-    );
+  // Guarda la ubicación aproximada resuelta por IP en un escaneo concreto, o la
+  // nota con el motivo si no se pudo resolver (IP privada, proveedor sin respuesta).
+  function updateScanLocation(scanId, geo, note) {
+    if (!scanId) return;
+    if (geo) {
+      db.prepare('UPDATE scans SET city = ?, region = ?, country = ?, lat = ?, lon = ?, geo_note = NULL WHERE id = ?').run(
+        geo.city || null,
+        geo.region || null,
+        geo.country || null,
+        geo.lat != null ? geo.lat : null,
+        geo.lon != null ? geo.lon : null,
+        scanId
+      );
+    } else if (note) {
+      db.prepare('UPDATE scans SET geo_note = ? WHERE id = ?').run(String(note).slice(0, 200), scanId);
+    }
   }
 
   function recentScans(tagId, limit = 10) {
     return db
       .prepare(
-        'SELECT created_at, user_agent, city, region, country, lat, lon FROM scans WHERE tag_id = ? ORDER BY id DESC LIMIT ?'
+        'SELECT created_at, user_agent, city, region, country, lat, lon, geo_note FROM scans WHERE tag_id = ? ORDER BY id DESC LIMIT ?'
       )
       .all(tagId, limit);
   }

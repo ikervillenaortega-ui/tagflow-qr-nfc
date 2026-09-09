@@ -110,6 +110,8 @@
         <% if (s.location) { %>
           · <span class="scan-loc">📍 <%= s.location %></span>
           <% if (s.mapsUrl) { %> <a class="scan-map" href="<%= s.mapsUrl %>" target="_blank" rel="noopener">Ver en el mapa</a><% } %>
+        <% } else if (s.note) { %>
+          · <span class="muted" title="<%= s.note %>">📍 <%= s.note %></span>
         <% } else { %>
           · <span class="muted">ubicación no disponible</span>
         <% } %>
