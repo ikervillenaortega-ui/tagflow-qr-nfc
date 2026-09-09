@@ -60,6 +60,107 @@ function clientIp(req) {
   return (req.ip || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
 }
 
+// Genera las series de escaneos por periodo (día/semana/mes/año) a partir de
+// marcas de tiempo ISO (UTC). Devuelve buckets de longitud fija terminados en
+// hoy: 30 días, 12 semanas, 12 meses y 5 años. Los huecos quedan a 0 para que
+// la gráfica muestre siempre el eje temporal completo.
+function buildScanSeries(timestamps) {
+  const DAY = 86400000;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const now = today.getTime();
+
+  // Clave de bucket para cada escala (semana y mes empiezan el lunes / día 1).
+  const weekKey = (t) => {
+    const d = new Date(t);
+    const day = (d.getUTCDay() + 6) % 7; // lunes = 0
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day);
+  };
+  const monthKey = (t) => {
+    const d = new Date(t);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  };
+  const yearKey = (t) => {
+    const d = new Date(t);
+    return Date.UTC(d.getUTCFullYear(), 0, 1);
+  };
+
+  const daily = [];
+  const dailyIdx = new Map();
+  for (let i = 29; i >= 0; i--) {
+    const key = now - i * DAY;
+    daily.push({ label: fmtDayLabel(key), count: 0 });
+    dailyIdx.set(key, daily.length - 1);
+  }
+  const weekly = [];
+  const weeklyIdx = new Map();
+  for (let i = 11; i >= 0; i--) {
+    const key = weekKey(now - i * 7 * DAY);
+    weekly.push({ label: fmtWeekLabel(key), count: 0 });
+    weeklyIdx.set(key, weekly.length - 1);
+  }
+  const monthly = [];
+  const monthlyIdx = new Map();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() - i);
+    const key = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    monthly.push({ label: fmtMonthLabel(key), count: 0 });
+    monthlyIdx.set(key, monthly.length - 1);
+  }
+  const yearly = [];
+  const yearlyIdx = new Map();
+  for (let i = 4; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCFullYear(d.getUTCFullYear() - i);
+    const key = Date.UTC(d.getUTCFullYear(), 0, 1);
+    yearly.push({ label: String(d.getUTCFullYear()), count: 0 });
+    yearlyIdx.set(key, yearly.length - 1);
+  }
+
+  for (const raw of timestamps) {
+    const t = new Date(raw).getTime();
+    if (Number.isNaN(t)) continue;
+    const di = dailyIdx.get(Math.floor(t / DAY) * DAY);
+    if (di != null) daily[di].count++;
+    const wi = weeklyIdx.get(weekKey(t));
+    if (wi != null) weekly[wi].count++;
+    const mi = monthlyIdx.get(monthKey(t));
+    if (mi != null) monthly[mi].count++;
+    const yi = yearlyIdx.get(yearKey(t));
+    if (yi != null) yearly[yi].count++;
+  }
+
+  return { daily, weekly, monthly, yearly };
+}
+
+function fmtDayLabel(t) {
+  const d = new Date(t);
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function fmtWeekLabel(t) {
+  const d = new Date(t);
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function fmtMonthLabel(t) {
+  const d = new Date(t);
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+const MONTH_NAMES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+// Escape HTML mínimo para inyectar datos en atributos data-* de las vistas.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // Texto legible de la ubicación de un escaneo: «Ciudad, Región, País».
 function fmtLocation(scan) {
   const parts = [scan && scan.city, scan && scan.region, scan && scan.country].filter(Boolean);
@@ -72,4 +173,4 @@ function mapsUrl(lat, lon) {
   return `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
 }
 
-module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, clientIp, fmtLocation, mapsUrl };
+module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, clientIp, fmtLocation, mapsUrl, buildScanSeries, escapeHtml };

@@ -24,6 +24,34 @@
   <div class="stat-card"><span class="stat-num"><%= fmtDate(tag.fechaActualizacion) %></span><span class="stat-label">Modificado</span></div>
 </div>
 
+<section class="panel chart-panel" id="chart-panel"
+  data-tag-id="<%= tag.id %>"
+  data-series='<%= JSON.stringify(series) %>'
+  data-origen='<%= JSON.stringify(origen) %>'>
+  <h2>Gráfica de escaneos</h2>
+  <p class="muted">Escaneos de este Tag por periodo. Usa las pestañas para cambiar entre vista diaria, semanal, mensual y anual.</p>
+  <div class="chart-tabs" role="tablist">
+    <button type="button" class="chart-tab active" data-range="daily" role="tab">Diario</button>
+    <button type="button" class="chart-tab" data-range="weekly" role="tab">Semanal</button>
+    <button type="button" class="chart-tab" data-range="monthly" role="tab">Mensual</button>
+    <button type="button" class="chart-tab" data-range="yearly" role="tab">Anual</button>
+  </div>
+  <div class="chart-total"><span id="chart-total-num"><%= tag.escaneos %></span> <span class="muted">escaneos en total</span></div>
+  <div class="chart-wrap">
+    <div class="chart-canvas" id="chart-canvas" role="img" aria-label="Gráfica de escaneos por periodo"></div>
+  </div>
+  <div class="chart-origen">
+    <h3>Origen de los escaneos</h3>
+    <ul class="origen-list">
+      <li><span class="origen-dot origen-directo-dot"></span> <strong id="origen-directo"><%= origen.directo %></strong> directos <span class="muted">(cámara, NFC o enlace abierto)</span></li>
+      <li><span class="origen-dot origen-web-dot"></span> <strong id="origen-web"><%= origen.web %></strong> desde otras webs</li>
+    </ul>
+    <% if (origen.sites && origen.sites.length) { %>
+    <p class="muted origen-sites">Sitios de procedencia: <% origen.sites.forEach(function (s, i) { %><%= s.host %> (<%= s.count %>)<% if (i < origen.sites.length - 1) { %> · <% } %><% }) %></p>
+    <% } %>
+  </div>
+</section>
+
 <section class="panel">
   <h2>URL pública</h2>
   <p class="muted">Esta URL es <strong>inmutable</strong>: imprímela en el QR o prográmala en la etiqueta NFC. El destino se decide desde el panel.</p>

@@ -492,6 +492,59 @@ test('logout cierra la sesión', async () => {
   assert.match(after.headers.location, /\/admin\/login/);
 });
 
+test('gráfica de escaneos: series en el detalle y endpoint JSON', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+
+  // Tag nuevo con 3 escaneos de fechas variadas (hoy, hace 3 días, hace 40 días)
+  const formPage = await req('/admin/tags/nuevo', { cookie });
+  const csrf = getCsrf(formPage.body);
+  const created = await req('/admin/tags', {
+    method: 'POST',
+    body: { _csrf: csrf, nombre: 'Con Grafica', tipo: 'qr', modo: 'url', url_destino: 'https://ejemplo.com/grafica', estado: 'activo' },
+    cookie
+  });
+  assert.equal(created.statusCode, 302);
+  const tagRow = db.prepare('SELECT id FROM tags WHERE nombre = ?').get('Con Grafica');
+  assert.ok(tagRow, 'el tag de la gráfica se creó');
+  const tag = models.getTagById(tagRow.id);
+
+  const DAY = 86400000;
+  const insScan = db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash, referrer) VALUES (?, ?, ?, ?, ?)');
+  insScan.run(tag.id, new Date().toISOString(), 'UA test', 'h1', null);
+  insScan.run(tag.id, new Date(Date.now() - 3 * DAY).toISOString(), 'UA test', 'h2', 'https://instagram.com/p/abc');
+  insScan.run(tag.id, new Date(Date.now() - 40 * DAY).toISOString(), 'UA test', 'h3', null);
+  // El contador del tag no sube con inserts directos: lo dejo coherente.
+  db.prepare('UPDATE tags SET escaneos = 3 WHERE id = ?').run(tag.id);
+
+  // El detalle muestra el panel de la gráfica con las series embebidas
+  const page = await req(`/admin/tags/${tag.id}`, { cookie });
+  assert.equal(page.statusCode, 200);
+  assert.match(page.body, /Gráfica de escaneos/);
+  assert.match(page.body, /chart-panel/);
+  assert.match(page.body, /Origen de los escaneos/);
+  assert.match(page.body, /data-series='\{&#34;daily&#34;:\[\{&#34;label&#34;:&#34;\d\d\/\d\d&#34;/);
+
+  // El endpoint JSON devuelve las series y la procedencia
+  const jsonRes = await req(`/admin/tags/${tag.id}/scans.json`, { cookie });
+  assert.equal(jsonRes.statusCode, 200);
+  const data = JSON.parse(jsonRes.body);
+  assert.equal(data.series.daily.length, 30);
+  assert.equal(data.series.weekly.length, 12);
+  assert.equal(data.series.monthly.length, 12);
+  assert.equal(data.series.yearly.length, 5);
+  assert.equal(data.series.daily[29].count, 1);
+  assert.equal(data.series.daily[26].count, 1);
+  assert.equal(data.series.monthly.reduce((a, b) => a + b.count, 0), 3);
+  assert.equal(data.series.yearly.reduce((a, b) => a + b.count, 0), 3);
+  assert.equal(data.origen.directo, 2);
+  assert.equal(data.origen.web, 1);
+  assert.ok(data.origen.sites.some((s) => s.host === 'instagram.com'));
+  assert.equal(data.total, 3);
+
+  // Limpieza para no afectar a tests posteriores
+  models.deleteTag(tag.id);
+});
+
 test('creación masiva: formulario, validación y creación correlativa', async () => {
   const { cookie } = await loginAs('admin', 'secret123');
 

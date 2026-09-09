@@ -3,7 +3,7 @@ const fs = require('fs');
 const express = require('express');
 const archiver = require('archiver');
 const { backupToFile, restoreFromFile, isValidSqliteBuffer, tempPath } = require('../backup');
-const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl, fmtLocation, mapsUrl } = require('../helpers');
+const { publicBaseUrl, tagPublicUrl, detectOS, osLabel, isHttpUrl, fmtLocation, mapsUrl, buildScanSeries } = require('../helpers');
 const { buildWifiString } = require('../wifi');
 const { buildVCard } = require('../contact');
 const { qrPng, qrSvg } = require('../qr');
@@ -299,7 +299,29 @@ function createAdminRouter({ db, models, config, auth }) {
       note: s.geo_note
     }));
 
-    res.render('admin/detail', { title: tag.nombre, active: 'tags', tag, publicUrl, wifiPayload, contactoPayload, scans });
+    res.render('admin/detail', {
+      title: tag.nombre,
+      active: 'tags',
+      tag,
+      publicUrl,
+      wifiPayload,
+      contactoPayload,
+      scans,
+      series: buildScanSeries(models.scanTimestamps(tag.id)),
+      origen: models.scanReferrerCounts(tag.id)
+    });
+  });
+
+  // Datos de la gráfica de escaneos (JSON): las mismas series que la vista,
+  // servidas aparte para recargar la gráfica sin refrescar la página.
+  router.get('/tags/:id/scans.json', (req, res) => {
+    const tag = models.getTagById(parseId(req.params.id));
+    if (!tag) return res.status(404).json({ error: 'Tag no encontrado' });
+    res.json({
+      series: buildScanSeries(models.scanTimestamps(tag.id)),
+      origen: models.scanReferrerCounts(tag.id),
+      total: tag.escaneos
+    });
   });
 
   // Editar (con ?modo=contacto se preselecciona ese modo: flujo «configurar al vender»)

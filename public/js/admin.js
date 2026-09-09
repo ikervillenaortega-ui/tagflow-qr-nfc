@@ -127,6 +127,88 @@
     });
   }
 
+  // ===== Gráfica de escaneos (barras CSS, sin librerías) =====
+  var chartPanel = document.getElementById('chart-panel');
+  if (chartPanel) {
+    var TAG_ID = chartPanel.dataset.tagId;
+    var series = null;
+    try { series = JSON.parse(chartPanel.dataset.series || 'null'); } catch (e) { series = null; }
+    var rangeNames = { daily: 'Día', weekly: 'Semana', monthly: 'Mes', yearly: 'Año' };
+    var canvas = document.getElementById('chart-canvas');
+    var currentRange = 'daily';
+
+    function drawChart() {
+      if (!canvas || !series || !series[currentRange]) return;
+      var data = series[currentRange];
+      var max = 0;
+      for (var i = 0; i < data.length; i++) if (data[i].count > max) max = data[i].count;
+      canvas.innerHTML = '';
+      var frag = document.createDocumentFragment();
+      for (var j = 0; j < data.length; j++) {
+        (function (bucket) {
+          var bar = document.createElement('div');
+          bar.className = 'chart-bar' + (bucket.count === 0 ? ' zero' : '');
+          var h = max > 0 ? Math.round((bucket.count / max) * 100) : 0;
+          bar.style.height = (bucket.count > 0 && h < 4 ? 4 : h) + '%';
+          var tip = document.createElement('span');
+          tip.className = 'tip';
+          tip.textContent = rangeNames[currentRange] + ' ' + bucket.label + ': ' + bucket.count + (bucket.count === 1 ? ' escaneo' : ' escaneos');
+          bar.appendChild(tip);
+          frag.appendChild(bar);
+        })(data[j]);
+      }
+      canvas.appendChild(frag);
+
+      // Etiquetas del eje X: muestro 6 como máximo (cada N barras).
+      var oldX = canvas.parentNode.querySelector('.chart-xlabels');
+      if (oldX) oldX.remove();
+      var step = Math.ceil(data.length / 6);
+      var x = document.createElement('div');
+      x.className = 'chart-xlabels';
+      for (var k = 0; k < data.length; k++) {
+        var lab = document.createElement('span');
+        if (k % step === 0) {
+          lab.textContent = data[k].label;
+          lab.className = 'show';
+        }
+        x.appendChild(lab);
+      }
+      canvas.parentNode.appendChild(x);
+    }
+
+    chartPanel.querySelectorAll('.chart-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        currentRange = tab.dataset.range;
+        chartPanel.querySelectorAll('.chart-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        drawChart();
+      });
+    });
+
+    drawChart();
+
+    // Refresco de la gráfica al volver a la pestaña (y cada 5 min si está visible).
+    var REFRESH_MS = 5 * 60 * 1000;
+    function refreshData() {
+      fetch('/admin/tags/' + TAG_ID + '/scans.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (json) {
+          if (!json || !json.series) return;
+          series = json.series;
+          var tot = document.getElementById('chart-total-num');
+          if (tot && json.total != null) tot.textContent = json.total;
+          drawChart();
+        })
+        .catch(function () { /* silencioso: la próxima visita lo refresca */ });
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) refreshData();
+    });
+    setInterval(function () {
+      if (!document.hidden) refreshData();
+    }, REFRESH_MS);
+  }
+
   // Escritura NFC vía Web NFC API (solo Chrome en Android)
   var nfcWrite = document.getElementById('nfc-write');
   if (nfcWrite && 'NDEFReader' in window) {

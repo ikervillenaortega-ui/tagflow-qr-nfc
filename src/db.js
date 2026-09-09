@@ -114,6 +114,14 @@ const MIGRATIONS = [
       DROP TABLE tags;
       ALTER TABLE tags_new RENAME TO tags;
     `
+  },
+  {
+    // Procedencia del escaneo: página que envió al visitante a la URL del tag
+    // (cámara nativa → sin referrer; otra web → su URL; vacío → origen vacío).
+    version: 6,
+    sql: `
+      ALTER TABLE scans ADD COLUMN referrer TEXT;
+    `
   }
 ];
 

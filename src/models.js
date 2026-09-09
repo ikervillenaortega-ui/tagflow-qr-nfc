@@ -255,11 +255,12 @@ function createModels(db, config) {
   function recordScan(tagId, req, clientIp) {
     const now = nowIso();
     db.prepare('UPDATE tags SET escaneos = escaneos + 1, ultimo_escaneo = ? WHERE id = ?').run(now, tagId);
-    const info = db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash) VALUES (?, ?, ?, ?)').run(
+    const info = db.prepare('INSERT INTO scans (tag_id, created_at, user_agent, ip_hash, referrer) VALUES (?, ?, ?, ?, ?)').run(
       tagId,
       now,
       String(req.headers['user-agent'] || '').slice(0, 300),
-      hashIp(clientIp || req.ip)
+      hashIp(clientIp || req.ip),
+      String(req.headers['referer'] || '').slice(0, 500) || null
     );
     return info.lastInsertRowid;
   }
@@ -290,6 +291,40 @@ function createModels(db, config) {
       .all(tagId, limit);
   }
 
+  // Marcas de tiempo (ISO) de todos los escaneos de un tag: materia prima para
+  // las series diaria/semanal/mensual/anual de la gráfica.
+  function scanTimestamps(tagId) {
+    return db.prepare('SELECT created_at FROM scans WHERE tag_id = ? ORDER BY id ASC').all(tagId).map((r) => r.created_at);
+  }
+
+  // Procedencia del escaneo: con Referer llegó desde otra web; sin él, directo
+  // (cámara nativa, NFC o URL escrita — indistinguibles entre sí). «sites»
+  // agrega por dominio los procedentes de otras webs (top 5).
+  function scanReferrerCounts(tagId) {
+    const rows = db.prepare('SELECT referrer FROM scans WHERE tag_id = ?').all(tagId);
+    let directo = 0;
+    let web = 0;
+    const byHost = new Map();
+    for (const r of rows) {
+      if (!r.referrer) {
+        directo++;
+        continue;
+      }
+      web++;
+      try {
+        const host = new URL(r.referrer).host;
+        if (host) byHost.set(host, (byHost.get(host) || 0) + 1);
+      } catch {
+        // Referer malformado: cuenta como web pero sin sitio asociado.
+      }
+    }
+    const sites = [...byHost.entries()]
+      .map(([host, count]) => ({ host, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    return { directo, web, sites };
+  }
+
   function findUserByUsername(username) {
     return db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username);
   }
@@ -317,6 +352,8 @@ function createModels(db, config) {
     deleteTag,
     setEstado,
     recordScan,
+    scanTimestamps,
+    scanReferrerCounts,
     updateScanLocation,
     recentScans,
     findUserByUsername,

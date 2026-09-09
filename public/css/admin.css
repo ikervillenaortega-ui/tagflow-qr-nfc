@@ -172,6 +172,45 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .scan-loc { color: var(--text); font-weight: 600; }
 .scan-map { margin-left: 6px; font-size: 12px; }
 
+/* ===== Gráfica de escaneos ===== */
+.chart-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+.chart-tab {
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.chart-tab:hover { color: var(--text); border-color: #cbd5e1; }
+.chart-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chart-total { font-size: 13px; margin: 6px 0 10px; }
+.chart-total #chart-total-num { font-weight: 800; font-size: 18px; }
+.chart-wrap { border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px 4px; background: var(--bg); }
+.chart-canvas { display: flex; align-items: flex-end; gap: 2px; height: 160px; }
+.chart-bar {
+  flex: 1; min-width: 3px; background: var(--primary); border-radius: 3px 3px 0 0;
+  position: relative; cursor: default; min-height: 1px;
+}
+.chart-bar:hover { background: var(--primary-dark); }
+.chart-bar .tip {
+  display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #0f172a; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 6px;
+  white-space: nowrap; z-index: 5; pointer-events: none;
+}
+.chart-bar:hover .tip, .chart-bar:focus .tip { display: block; }
+.chart-bar.zero { background: var(--border); min-height: 2px; }
+.chart-xlabels { display: flex; gap: 2px; margin-top: 4px; }
+.chart-xlabels span {
+  flex: 1; min-width: 0; text-align: center; font-size: 10px; color: var(--muted);
+  overflow: hidden; white-space: nowrap;
+}
+.chart-xlabels span.show { overflow: visible; }
+.chart-origen { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.chart-origen h3 { font-size: 13px; margin: 0 0 6px; }
+.origen-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.origen-list li { margin: 2px 0; }
+.origen-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+.origen-directo-dot { background: var(--primary); }
+.origen-web-dot { background: #94a3b8; }
+.origen-sites { margin: 6px 0 0; font-size: 12px; }
+
 /* ===== Copia de seguridad ===== */
 .backup-restore { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .backup-file-pick {

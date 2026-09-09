@@ -18,7 +18,7 @@
         <input type="text" name="nombre" required maxlength="120" value="<%= values ? values.nombre : (tag ? tag.nombre : '') %>" placeholder="Ej. Mesa 3 · Restaurante">
       </label>
       <label>Slug (opcional)
-        <input type="text" name="slug" maxlength="64" pattern="[A-Za-z0-9_-]{3,64}" value="<%= values ? values.slug : (tag ? tag.slug : '') %>" placeholder="Autogenerado si se deja vacío">
+        <input type="text" name="slug" maxlength="64" pattern="[A-Za-z0-9_\-]{3,64}" value="<%= values ? values.slug : (tag ? tag.slug : '') %>" placeholder="Autogenerado si se deja vacío">
         <small>La URL pública será /t/<strong><%= slugPreview %></strong></small>
       </label>
       <label>Tipo de soporte *
