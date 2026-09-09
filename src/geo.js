@@ -22,14 +22,39 @@ async function fetchJson(url, timeoutMs = 8000) {
   }
 }
 
+// Rangos IPv4 sin geolocalización útil (privados, bucle local, CGNAT,
+// link-local, multicast y reservados). Se comprueban sobre el valor entero.
+function isPrivateIpv4(ip) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return false;
+  const n = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  return (
+    (n >>> 24) === 0 ||                // 0.0.0.0/8
+    (n >>> 24) === 10 ||               // 10.0.0.0/8
+    (n >= 0x64400000 && n <= 0x647fffff) || // 100.64.0.0/10 CGNAT
+    (n >>> 24) === 127 ||              // 127.0.0.0/8 loopback
+    (n >= 0xa9fe0000 && n <= 0xa9feffff) || // 169.254.0.0/16 link-local
+    (n >= 0xac100000 && n <= 0xac1fffff) || // 172.16.0.0/12
+    (n >= 0xc0a80000 && n <= 0xc0a8ffff) || // 192.168.0.0/16
+    (n >= 0xc6120000 && n <= 0xc633ffff) || // 198.18.0.0/15 benchmark
+    (n >>> 28) >= 14                  // 224.0.0.0/4 multicast y reservados
+  );
+}
+
 // Normaliza la IP y descarta direcciones privadas/de bucle local (imposibles
 // de geolocalizar, y además evitan peticiones de red en tests locales).
 function normalizeIp(ip) {
   let value = String(ip || '').trim();
-  if (!value) return null;
-  if (value.startsWith('::ffff:')) value = value.slice(7);
-  if (value === '::1' || value === '127.0.0.1' || value === 'localhost') return null;
-  return value;
+  if (!value || value === 'localhost') return null;
+  if (value.startsWith('::ffff:')) value = value.slice(7); // IPv4 mapeada a IPv6
+  if (value === '::1' || value === '::') return null;      // loopback / sin especificar
+  if (value.startsWith('fc') || value.startsWith('fd')) return null; // ULA fc00::/7
+  if (value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb')) return null; // link-local fe80::/10
+  if (value.includes('.')) {
+    if (isPrivateIpv4(value)) return null;
+    return value;
+  }
+  return value.includes(':') ? value : null;
 }
 
 async function ipToLocation(ip) {
