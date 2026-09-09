@@ -79,7 +79,7 @@ test/              # tests con node:test (unitarios + integración)
 - **Modo `wifi`:** página ligera con SSID, contraseña (botón copiar) e instrucciones adaptadas al SO detectado por user-agent. En Android la cámara nativa ya conecta directamente con el QR «WiFi directo» del panel.
 - **`desactivado` / pausado / inexistente:** página neutra «aún no configurado».
 - Cada escaneo incrementa el contador y guarda fecha, user-agent y un hash de la IP (nunca la IP en claro).
-- **Ubicación aproximada:** cada escaneo se geolocaliza por IP (ciudad/región/país + coordenadas) en segundo plano y sin pedir permisos al visitante. La página de detalle de cada Tag muestra la lista de escaneos con su ubicación y un enlace «Ver en el mapa». La IP real solo se envía al proveedor (ipwho.is, con ip-api.com de respaldo); en la base de datos solo queda la ubicación. Puede desactivarse con `GEO_ENABLED=false`.
+- **Ubicación aproximada:** cada escaneo se geolocaliza por IP (ciudad/región/país + coordenadas) en segundo plano y sin pedir permisos al visitante. La página de detalle de cada Tag muestra la lista de escaneos con su ubicación y un enlace «Ver en el mapa». La IP real solo se envía al proveedor (ipwho.is, con freeipapi.com e ip-api.com de respaldo); en la base de datos solo queda la ubicación y un hash de la IP. Detrás de proxies encadenados (Render, Cloudflare…) se lee la primera entrada de `X-Forwarded-For` para obtener la IP real del cliente. Si la ubicación no se puede resolver (IP privada, proveedor sin respuesta) el panel muestra el motivo. Puede desactivarse con `GEO_ENABLED=false`.
 
 ## Stock de QR/NFC (venta de códigos en blanco)
 
