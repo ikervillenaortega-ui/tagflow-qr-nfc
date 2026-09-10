@@ -122,6 +122,14 @@ test('sin CSRF token, el POST es rechazado', async () => {
   assert.equal(res.statusCode, 403);
 });
 
+test('login con token caducado muestra el formulario con mensaje claro y token nuevo', async () => {
+  const res = await req('/admin/login', { method: 'POST', body: { username: 'Iker', password: 'Iker2009', _csrf: 'token-viejo' } });
+  assert.equal(res.statusCode, 403);
+  assert.match(res.body, /caducado/);
+  // Y trae un token fresco para que el reintento funcione sin recargar.
+  assert.match(res.body, /name="_csrf" value="[0-9a-f]{64}"/);
+});
+
 test('flujo completo: login → crear tag URL → escaneo → editar a WiFi → desactivar → eliminar', async () => {
   models.createUser('admin', bcrypt.hashSync('secret123', 4));
 

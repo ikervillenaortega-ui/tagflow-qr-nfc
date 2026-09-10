@@ -46,6 +46,17 @@ function createApp({ config, db }) {
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.static(path.join(config.root, 'public'), { maxAge: '1d' }));
 
+  // Las páginas dinámicas (panel y vistas públicas) no se cachean: así el
+  // navegador nunca reutiliza una versión antigua tras un despliegue y los
+  // formularios no viajan con tokens CSRF caducados. Los estáticos (css/js)
+  // sí se cachean porque su URL lleva versión (?v=…).
+  app.use((req, res, next) => {
+    if (!['/css', '/js', '/img', '/fonts'].some((p) => req.path === p || req.path.startsWith(p + '/'))) {
+      res.set('Cache-Control', 'no-store, must-revalidate');
+    }
+    next();
+  });
+
   app.use(
     session({
       store: new SqliteSessionStore(db, config.sessionTtlMs),

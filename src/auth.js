@@ -36,6 +36,17 @@ function createAuth({ db, models, config }) {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
     const token = req.body && req.body._csrf ? req.body._csrf : req.get('x-csrf-token');
     if (!req.session || !req.session.csrf || !safeEqual(token, req.session.csrf)) {
+      // En el login, un token caducado (p. ej. página guardada en caché del
+      // navegador o sesión expirada) es lo normal: en vez del error genérico
+      // 403, se vuelve a mostrar el formulario con un mensaje claro y un
+      // token nuevo, para que el reintento funcione a la primera.
+      if (req.path === '/login') {
+        if (req.session) req.session.csrf = randomToken();
+        return res.status(403).render('admin/login', {
+          error: 'La página había caducado (caché del navegador). Vuelve a introducir tus credenciales.',
+          csrfToken: req.session ? req.session.csrf : ''
+        });
+      }
       return res.status(403).render('admin/error', {
         status: 403,
         message: 'Token de seguridad inválido o caducado. Vuelve a cargar la página e inténtalo de nuevo.'
