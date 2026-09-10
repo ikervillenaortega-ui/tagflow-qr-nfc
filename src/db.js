@@ -122,6 +122,49 @@ const MIGRATIONS = [
     sql: `
       ALTER TABLE scans ADD COLUMN referrer TEXT;
     `
+  },
+  {
+    // Modo Presentación: tarjeta personal digital (foto circular, nombre de la
+    // persona, cargo, descripción) con el contacto al final. La foto se guarda
+    // como data URL (JPEG cuadrado ya optimizado en el cliente). Como SQLite no
+    // permite modificar un CHECK con ALTER, se reconstruye la tabla tags con el
+    // CHECK que admite el modo 'presentacion' y las columnas nuevas.
+    version: 7,
+    sql: `
+      CREATE TABLE tags_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'qr' CHECK (tipo IN ('qr','nfc','ambos')),
+        modo TEXT NOT NULL DEFAULT 'desactivado' CHECK (modo IN ('url','wifi','contacto','presentacion','desactivado')),
+        url_destino TEXT,
+        wifi_ssid TEXT,
+        wifi_password_enc TEXT,
+        wifi_seguridad TEXT CHECK (wifi_seguridad IN ('WPA','WEP','nopass')),
+        contacto_telefono TEXT,
+        contacto_email TEXT,
+        pres_persona_nombre TEXT,
+        pres_cargo TEXT,
+        pres_bio TEXT,
+        pres_foto TEXT,
+        escaneos INTEGER NOT NULL DEFAULT 0,
+        ultimo_escaneo TEXT,
+        estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','pausado')),
+        fecha_creacion TEXT NOT NULL,
+        fecha_actualizacion TEXT NOT NULL
+      );
+
+      INSERT INTO tags_new (id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+        wifi_seguridad, contacto_telefono, contacto_email, escaneos, ultimo_escaneo, estado,
+        fecha_creacion, fecha_actualizacion)
+        SELECT id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+          wifi_seguridad, contacto_telefono, contacto_email, escaneos, ultimo_escaneo, estado,
+          fecha_creacion, fecha_actualizacion
+        FROM tags;
+
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+    `
   }
 ];
 

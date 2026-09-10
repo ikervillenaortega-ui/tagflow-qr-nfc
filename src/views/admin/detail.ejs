@@ -4,6 +4,7 @@
   <div class="page-actions">
     <% if (tag.modo === 'desactivado') { %>
       <a class="btn btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/editar?modo=presentacion">Crear presentación</a>
     <% } %>
     <a class="btn" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
     <form method="post" action="/admin/tags/<%= tag.id %>/estado" class="inline-form">
@@ -52,6 +53,29 @@
   </div>
 </section>
 
+<% if (tag.modo === 'presentacion') { %>
+<section class="panel pres-panel">
+  <h2>Presentación personal</h2>
+  <div class="pres-summary">
+    <div class="pres-thumb">
+      <% if (tag.presFoto) { %>
+        <img src="<%= tag.presFoto %>" alt="Foto de <%= tag.presPersonaNombre || tag.nombre %>">
+      <% } else { %>
+        <span class="pres-thumb-initials"><%= String(tag.presPersonaNombre || tag.nombre || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '👤' %></span>
+      <% } %>
+    </div>
+    <div class="pres-info">
+      <strong class="pres-name"><%= tag.presPersonaNombre || tag.nombre %></strong>
+      <% if (tag.presCargo) { %><div class="muted"><%= tag.presCargo %></div><% } %>
+      <% if (tag.presBio) { %><p class="pres-bio-preview"><%= tag.presBio %></p><% } %>
+      <% if (tag.presFoto) { %>
+        <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/foto.png">⬇ Descargar foto circular (SVG)</a>
+      <% } %>
+    </div>
+  </div>
+</section>
+<% } %>
+
 <section class="panel">
   <h2>URL pública</h2>
   <p class="muted">Esta URL es <strong>inmutable</strong>: imprímela en el QR o prográmala en la etiqueta NFC. El destino se decide desde el panel.</p>
@@ -65,7 +89,7 @@
   <h2>Configuración actual</h2>
   <dl class="kv">
     <dt>Modo</dt>
-    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : 'Desactivado')) %></span></dd>
+    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : (tag.modo === 'presentacion' ? 'Presentación' : 'Desactivado'))) %></span></dd>
     <% if (tag.modo === 'url') { %>
       <dt>Destino</dt>
       <dd><a href="<%= tag.urlDestino %>" target="_blank" rel="noopener"><%= tag.urlDestino %></a></dd>
@@ -83,6 +107,17 @@
         <dt>Correo</dt>
         <dd><a href="mailto:<%= tag.contactoEmail %>"><%= tag.contactoEmail %></a></dd>
       <% } %>
+    <% } else if (tag.modo === 'presentacion') { %>
+      <% if (tag.contactoTelefono) { %>
+        <dt>Teléfono</dt>
+        <dd><a href="tel:<%= tag.contactoTelefono %>"><%= tag.contactoTelefono %></a></dd>
+      <% } %>
+      <% if (tag.contactoEmail) { %>
+        <dt>Correo</dt>
+        <dd><a href="mailto:<%= tag.contactoEmail %>"><%= tag.contactoEmail %></a></dd>
+      <% } %>
+      <dt>vCard</dt>
+      <dd><a class="link" href="/t/<%= tag.slug %>/contacto.vcf">Descargar tarjeta de contacto (.vcf)</a></dd>
     <% } else { %>
       <dt>Destino</dt>
       <dd class="muted">Este código muestra «aún no configurado». Cuando lo vendas, usa <a class="link" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a> para poner el teléfono y el correo del comprador.</dd>
@@ -108,12 +143,19 @@
       <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=contacto">QR · Contacto (vCard, PNG)</a>
       <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=contacto">QR · Contacto (vCard, SVG)</a>
     <% } %>
+    <% if (tag.modo === 'presentacion') { %>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.png?payload=contacto">QR · Presentación (vCard, PNG)</a>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/qr.svg?payload=contacto">QR · Presentación (vCard, SVG)</a>
+    <% } %>
   </div>
   <% if (tag.modo === 'wifi') { %>
     <p class="muted">El QR «WiFi directo» codifica el formato estándar <code>WIFI:…</code>: las cámaras de Android lo reconocen y conectan al instante, sin pasar por la web.</p>
   <% } %>
   <% if (tag.modo === 'contacto') { %>
     <p class="muted">El QR «Contacto» codifica una vCard: las cámaras del móvil ofrecen guardar el contacto directamente, sin pasar por la web.</p>
+  <% } %>
+  <% if (tag.modo === 'presentacion') { %>
+    <p class="muted">El QR «Presentación» codifica una vCard con el nombre, el cargo y el contacto de la persona: al escanearlo con la cámara, el móvil ofrece guardar el contacto. Para ver la tarjeta completa (foto, descripción y botones) se escanea el «QR · URL fija», que abre la página de presentación.</p>
   <% } %>
 </section>
 
@@ -139,6 +181,13 @@
     <button type="button" class="btn btn-sm" data-copy="#nfc-payload-contacto">Copiar</button>
   </div>
   <% } %>
+  <% if (tag.modo === 'presentacion') { %>
+  <div class="copy-row">
+    <span class="label">Presentación (vCard)</span>
+    <code class="code-block" id="nfc-payload-contacto"><%= contactoPayload %></code>
+    <button type="button" class="btn btn-sm" data-copy="#nfc-payload-contacto">Copiar</button>
+  </div>
+  <% } %>
   <div id="nfc-write" hidden>
     <p class="muted">Web NFC API detectada. Acerca la etiqueta al móvil y pulsa escribir.</p>
     <div class="btn-row">
@@ -148,6 +197,9 @@
       <% } %>
       <% if (tag.modo === 'contacto') { %>
         <button type="button" class="btn" data-nfc-write="contacto">Escribir contacto en etiqueta</button>
+      <% } %>
+      <% if (tag.modo === 'presentacion') { %>
+        <button type="button" class="btn" data-nfc-write="contacto">Escribir presentación en etiqueta</button>
       <% } %>
     </div>
     <p class="muted" id="nfc-status"></p>

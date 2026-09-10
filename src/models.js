@@ -4,13 +4,13 @@ const { encryptText, decryptText } = require('./crypto');
 const { hashIp } = require('./helpers');
 
 const TIPOS = ['qr', 'nfc', 'ambos'];
-const MODOS = ['url', 'wifi', 'contacto', 'desactivado'];
+const MODOS = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'];
 const ESTADOS = ['activo', 'pausado'];
 const SEGURIDADES = ['WPA', 'WEP', 'nopass'];
 
 const TAG_COLUMNS = `id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
-  wifi_seguridad, contacto_telefono, contacto_email, escaneos, ultimo_escaneo, estado,
-  fecha_creacion, fecha_actualizacion`;
+  wifi_seguridad, contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio,
+  pres_foto, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
 
 function nowIso() {
   return new Date().toISOString();
@@ -30,6 +30,10 @@ function rowToTag(row) {
     wifiSeguridad: row.wifi_seguridad,
     contactoTelefono: row.contacto_telefono,
     contactoEmail: row.contacto_email,
+    presPersonaNombre: row.pres_persona_nombre,
+    presCargo: row.pres_cargo,
+    presBio: row.pres_bio,
+    presFoto: row.pres_foto,
     escaneos: row.escaneos,
     ultimoEscaneo: row.ultimo_escaneo,
     estado: row.estado,
@@ -159,8 +163,9 @@ function createModels(db, config) {
     const stmt = db.prepare(
       `INSERT INTO tags
          (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
-          contacto_telefono, contacto_email, estado, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
+          estado, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     try {
       const info = stmt.run(
@@ -174,6 +179,10 @@ function createModels(db, config) {
         input.wifi ? input.wifi.seguridad : null,
         input.contacto ? input.contacto.telefono : null,
         input.contacto ? input.contacto.email : null,
+        input.presentacion ? input.presentacion.personaNombre || null : null,
+        input.presentacion ? input.presentacion.cargo || null : null,
+        input.presentacion ? input.presentacion.bio || null : null,
+        input.presentacion ? input.presentacion.foto || null : null,
         input.estado,
         now,
         now
@@ -223,6 +232,33 @@ function createModels(db, config) {
     }
     if (input.clearContacto) {
       sets.push('contacto_telefono = NULL', 'contacto_email = NULL');
+    }
+    if (input.clearPresentacion) {
+      sets.push(
+        'pres_persona_nombre = NULL',
+        'pres_cargo = NULL',
+        'pres_bio = NULL',
+        'pres_foto = NULL'
+      );
+    }
+    if (input.presentacion !== undefined) {
+      const p = input.presentacion || {};
+      sets.push(
+        'pres_persona_nombre = @pres_persona_nombre',
+        'pres_cargo = @pres_cargo',
+        'pres_bio = @pres_bio'
+      );
+      params.pres_persona_nombre = p.personaNombre || null;
+      params.pres_cargo = p.cargo || null;
+      params.pres_bio = p.bio || null;
+      // La foto: una data URL nueva la sustituye; keepFoto conserva la actual
+      // (no se toca la columna); en cualquier otro caso se limpia a NULL.
+      if (p.foto) {
+        sets.push('pres_foto = @pres_foto');
+        params.pres_foto = p.foto;
+      } else if (!p.keepFoto) {
+        sets.push('pres_foto = NULL');
+      }
     }
     if (input.clearWifi) {
       sets.push('wifi_ssid = NULL', 'wifi_password_enc = NULL', 'wifi_seguridad = NULL');

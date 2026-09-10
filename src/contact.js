@@ -10,12 +10,16 @@ function escapeVCardValue(value) {
   return String(value || '').replace(/([\\;,])/g, '\\$1').replace(/\r?\n/g, '\\n');
 }
 
-// Construye una vCard 3.0 con nombre + teléfono y/o correo.
-function buildVCard({ nombre, telefono, email }) {
+// Construye una vCard 3.0 con nombre + teléfono y/o correo. En modo Presentación
+// se añade el cargo (TITLE) y la descripción (NOTE) para que el contacto guardado
+// en el móvil lleve también esos datos.
+function buildVCard({ nombre, telefono, email, cargo, bio }) {
   const lines = ['BEGIN:VCARD', 'VERSION:3.0'];
   if (nombre) lines.push(`FN:${escapeVCardValue(nombre)}`);
+  if (cargo) lines.push(`TITLE:${escapeVCardValue(cargo)}`);
   if (telefono) lines.push(`TEL;TYPE=CELL:${String(telefono).replace(/[^\d+]/g, '')}`);
   if (email) lines.push(`EMAIL:${String(email).trim()}`);
+  if (bio) lines.push(`NOTE:${escapeVCardValue(bio)}`);
   lines.push('END:VCARD');
   return lines.join('\n');
 }

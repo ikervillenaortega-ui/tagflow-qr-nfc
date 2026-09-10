@@ -52,6 +52,11 @@
         <span>Muestra teléfono y correo para llamar o escribir.</span>
       </label>
       <label class="modo-card">
+        <input type="radio" name="modo" value="presentacion" <%= modoSel === 'presentacion' ? 'checked' : '' %>>
+        <strong>Presentación</strong>
+        <span>Tarjeta personal: foto circular, descripción y contacto.</span>
+      </label>
+      <label class="modo-card">
         <input type="radio" name="modo" value="desactivado" <%= modoSel === 'desactivado' ? 'checked' : '' %>>
         <strong>Desactivado</strong>
         <span>Página neutra: «aún no configurado».</span>
@@ -90,6 +95,48 @@
       <summary>Vista previa del payload WiFi</summary>
       <code class="code-block" id="wifi-preview">WIFI:T:WPA;S:…;P:…;;</code>
     </details>
+  </fieldset>
+
+  <fieldset class="field-presentacion">
+    <legend>Presentación personal</legend>
+    <p class="muted">Tarjeta digital elegante: foto circular, presentación de la persona y contacto al final. Perfecta para tarjetas QR/NFC vendidas: configura la foto y los datos cuando se venda cada tarjeta.</p>
+    <div class="pres-editor">
+      <div class="pres-photo-box">
+        <div class="pres-photo-ring" id="pres-photo-ring">
+          <img id="pres-photo-preview" src="<%= tag && tag.presFoto ? tag.presFoto : '' %>" alt="Foto de la persona" hidden>
+          <span class="pres-photo-placeholder" id="pres-photo-placeholder">
+            <% const initialsSrc = tag && tag.presPersonaNombre ? tag.presPersonaNombre : (values && values.pres_persona_nombre) || (tag ? tag.nombre : ''); %>
+            <% const ini = String(initialsSrc || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '👤'; %>
+            <%= ini %>
+          </span>
+        </div>
+        <div class="pres-photo-actions">
+          <label class="btn btn-sm pres-photo-pick">
+            📷 Elegir foto
+            <input type="file" id="pres-foto-input" accept="image/png, image/jpeg" hidden>
+          </label>
+          <button type="button" class="btn btn-sm" id="pres-foto-remove" <%= tag && tag.presFoto ? '' : 'hidden' %>>Quitar</button>
+          <small id="pres-foto-note"><%= tag && tag.presFoto ? 'Hay una foto guardada. Elige otra para sustituirla.' : 'JPG o PNG. Se ajusta sola a un círculo perfecto.' %></small>
+        </div>
+      </div>
+      <input type="hidden" name="pres_foto_data" id="pres-foto-data">
+      <input type="hidden" name="pres_foto_clear" id="pres-foto-clear" value="0">
+      <div class="form-grid">
+        <label>Nombre de la persona *
+          <input type="text" name="pres_persona_nombre" maxlength="80" value="<%= values ? values.pres_persona_nombre : (tag ? tag.presPersonaNombre || '' : '') %>" placeholder="Ej. María García">
+          <small>Nombre que se mostrará grande en la tarjeta.</small>
+        </label>
+        <label>Cargo o título
+          <input type="text" name="pres_cargo" maxlength="80" value="<%= values ? values.pres_cargo : (tag ? tag.presCargo || '' : '') %>" placeholder="Ej. Directora Comercial">
+          <small>Opcional, aparece bajo el nombre.</small>
+        </label>
+      </div>
+      <label>Descripción
+        <textarea name="pres_bio" id="pres-bio" rows="4" maxlength="600" placeholder="Una breve presentación profesional o personal…"><%= values ? values.pres_bio : (tag ? tag.presBio || '' : '') %></textarea>
+        <small><span id="pres-bio-count">0</span>/600 caracteres.</small>
+      </label>
+      <p class="muted">El teléfono y el correo de contacto se añaden en la sección «Datos de contacto» de justo debajo: aparecerán al final de la tarjeta, con botones de llamar y escribir.</p>
+    </div>
   </fieldset>
 
   <fieldset class="field-contacto">

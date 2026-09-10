@@ -32,10 +32,102 @@
     var urlField = form.querySelector('.field-url');
     var wifiField = form.querySelector('.field-wifi');
     var contactoField = form.querySelector('.field-contacto');
+    var presField = form.querySelector('.field-presentacion');
     var ssidInput = form.querySelector('input[name="wifi_ssid"]');
     var pwInput = form.querySelector('input[name="wifi_password"]');
     var secSelect = form.querySelector('select[name="wifi_seguridad"]');
     var preview = document.getElementById('wifi-preview');
+
+    // ===== Presentación personal: foto, contador de descripción =====
+    var MAX_DIM = 512;
+    var MAX_BYTES = 300 * 1024;
+    var fotoInput = document.getElementById('pres-foto-input');
+    var fotoData = document.getElementById('pres-foto-data');
+    var fotoClear = document.getElementById('pres-foto-clear');
+    var fotoPreview = document.getElementById('pres-photo-preview');
+    var fotoPlaceholder = document.getElementById('pres-photo-placeholder');
+    var fotoRemove = document.getElementById('pres-foto-remove');
+    var fotoNote = document.getElementById('pres-foto-note');
+    var bioInput = document.getElementById('pres-bio');
+    var bioCount = document.getElementById('pres-bio-count');
+
+    function setFotoPreview(dataUrl) {
+      if (!fotoPreview || !fotoPlaceholder) return;
+      if (dataUrl) {
+        fotoPreview.src = dataUrl;
+        fotoPreview.hidden = false;
+        fotoPlaceholder.style.display = 'none';
+        if (fotoRemove) fotoRemove.hidden = false;
+        if (fotoNote) fotoNote.textContent = '✓ Foto lista. Se guardará al pulsar «Guardar cambios».';
+      } else {
+        fotoPreview.hidden = true;
+        fotoPreview.src = '';
+        fotoPlaceholder.style.display = 'flex';
+        if (fotoRemove) fotoRemove.hidden = true;
+        if (fotoNote) fotoNote.textContent = 'JPG o PNG. Se ajusta sola a un círculo perfecto.';
+      }
+    }
+
+    function readFoto(file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          // Cuadrado centrado (recorte tipo avatar) y reducido: la imagen se
+          // guarda como JPEG optimizado en un data URL.
+          var side = Math.min(img.width, img.height);
+          var scale = Math.min(1, MAX_DIM / side);
+          var size = Math.max(1, Math.round(side * scale));
+          var c = document.createElement('canvas');
+          c.width = size;
+          c.height = size;
+          var ctx = c.getContext('2d');
+          var sx = (img.width - side) / 2;
+          var sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+          var quality = 0.9;
+          var out = c.toDataURL('image/jpeg', quality);
+          while (out.length > MAX_BYTES && quality > 0.4) {
+            quality -= 0.1;
+            out = c.toDataURL('image/jpeg', quality);
+          }
+          if (fotoData) fotoData.value = out;
+          if (fotoClear) fotoClear.value = '0';
+          setFotoPreview(out);
+        };
+        img.onerror = function () {
+          if (fotoNote) fotoNote.textContent = '✗ No se pudo leer la imagen. Prueba con otro fichero.';
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    if (fotoInput) {
+      fotoInput.addEventListener('change', function () {
+        var f = fotoInput.files && fotoInput.files[0];
+        if (!f) return;
+        if (!/^image\/(png|jpeg)$/.test(f.type)) {
+          if (fotoNote) fotoNote.textContent = '✗ Formato no soportado: usa JPG o PNG.';
+          return;
+        }
+        readFoto(f);
+      });
+    }
+    if (fotoRemove) {
+      fotoRemove.addEventListener('click', function () {
+        if (fotoData) fotoData.value = '';
+        if (fotoClear) fotoClear.value = '1';
+        if (fotoInput) fotoInput.value = '';
+        setFotoPreview(null);
+        if (fotoNote) fotoNote.textContent = 'La foto se quitará al guardar los cambios.';
+      });
+    }
+    if (bioInput && bioCount) {
+      var syncBio = function () { bioCount.textContent = String(bioInput.value.length); };
+      bioInput.addEventListener('input', syncBio);
+      syncBio();
+    }
 
     function currentModo() {
       var modo = null;
@@ -59,7 +151,8 @@
       // así que un '' (sin override inline) los dejaría ocultos para siempre.
       if (urlField) urlField.style.display = modo === 'url' ? 'block' : 'none';
       if (wifiField) wifiField.style.display = modo === 'wifi' ? 'block' : 'none';
-      if (contactoField) contactoField.style.display = modo === 'contacto' ? 'block' : 'none';
+      if (contactoField) contactoField.style.display = (modo === 'contacto' || modo === 'presentacion') ? 'block' : 'none';
+      if (presField) presField.style.display = modo === 'presentacion' ? 'block' : 'none';
       if (ssidInput) ssidInput.required = modo === 'wifi';
       if (secSelect) secSelect.required = modo === 'wifi';
       if (pwInput) {

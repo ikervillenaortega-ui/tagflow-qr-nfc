@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 24px 16px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #ecfeff 100%);
+      color: #1c2333; display: flex; align-items: flex-start; justify-content: center;
+    }
+    .card {
+      width: 100%; max-width: 440px; background: #fff; border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, .14), 0 2px 8px rgba(15, 23, 42, .06);
+      overflow: hidden; margin: auto;
+    }
+    .hero {
+      background: linear-gradient(135deg, #1d4ed8 0%, #0e7490 100%);
+      height: 120px; position: relative;
+    }
+    .hero::after {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(120px 60px at 85% 0%, rgba(255,255,255,.25), transparent 70%);
+    }
+    .avatar {
+      width: 128px; height: 128px; border-radius: 50%;
+      border: 5px solid #fff; box-shadow: 0 6px 18px rgba(15, 23, 42, .18);
+      margin: -64px auto 0; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .initials { color: #fff; font-size: 40px; font-weight: 800; letter-spacing: 1px; user-select: none; }
+    .head { text-align: center; padding: 14px 28px 0; }
+    h1 { font-size: 24px; margin: 0; letter-spacing: -.3px; word-break: break-word; }
+    .cargo { color: #0e7490; font-weight: 600; font-size: 14px; margin: 6px 0 0; text-transform: uppercase; letter-spacing: .8px; }
+    .bio {
+      margin: 18px 28px 0; padding: 14px 18px; border-radius: 14px;
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      font-size: 15px; line-height: 1.65; color: #334155; white-space: pre-line;
+    }
+    .divider { display: flex; align-items: center; gap: 12px; margin: 22px 28px 6px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #e2e8f0; }
+    .contacts { padding: 8px 20px 8px; display: grid; gap: 10px; }
+    .crow {
+      display: flex; align-items: center; gap: 12px;
+      border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px;
+      background: #fff; transition: border-color .15s, transform .15s;
+    }
+    .crow:hover { border-color: #93c5fd; }
+    .cico {
+      width: 40px; height: 40px; border-radius: 12px; flex: none;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      background: #eff6ff;
+    }
+    .crow.mail .cico { background: #ecfeff; }
+    .cval { flex: 1; min-width: 0; }
+    .clabel { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+    .cdata { font-size: 15px; font-weight: 600; word-break: break-all; color: #1c2333; text-decoration: none; display: block; }
+    a.cdata:hover { color: #1d4ed8; }
+    .cbtns { display: flex; gap: 6px; flex: none; }
+    .cbtn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 40px; height: 38px; padding: 0 10px; border: 0; border-radius: 10px;
+      background: #1d4ed8; color: #fff; font-weight: 600; font-size: 13px;
+      cursor: pointer; text-decoration: none;
+    }
+    .cbtn.ghost { background: #eef2ff; color: #1d4ed8; }
+    .cbtn:active { transform: scale(.97); }
+    .save-contact { padding: 4px 20px 8px; }
+    .save-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 13px 16px; border: 0; border-radius: 14px;
+      background: linear-gradient(135deg, #1d4ed8, #0e7490); color: #fff;
+      font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none;
+      box-shadow: 0 8px 20px rgba(29, 78, 216, .35);
+    }
+    .save-btn:active { transform: scale(.98); }
+    .save-note { display: block; text-align: center; font-size: 12px; color: #94a3b8; margin-top: 8px; }
+    .footnote { text-align: center; font-size: 11.5px; color: #94a3b8; padding: 6px 24px 20px; }
+    .ok { display: none; color: #15803d; font-weight: 600; font-size: 13px; text-align: center; margin: 8px 0 0; }
+    @media (prefers-color-scheme: dark) {
+      body { background: linear-gradient(160deg, #0b1220 0%, #0f172a 50%, #082f49 100%); color: #e2e8f0; }
+      .card { background: #101a2e; box-shadow: 0 20px 50px rgba(0, 0, 0, .5); }
+      .avatar { border-color: #101a2e; }
+      .bio { background: #0d1526; border-color: #24334d; color: #cbd5e1; }
+      .divider { color: #64748b; }
+      .divider::before, .divider::after { background: #24334d; }
+      .crow { border-color: #24334d; background: #0d1526; }
+      .crow:hover { border-color: #2f4a75; }
+      .cico { background: #16223a; }
+      .crow.mail .cico { background: #0c2a33; }
+      .cdata { color: #e2e8f0; }
+      a.cdata:hover { color: #7ab8ff; }
+      .cbtn { background: #2563eb; }
+      .cbtn.ghost { background: #16223a; color: #93c5fd; }
+      .cargo { color: #22d3ee; }
+      .ok { color: #4ade80; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="hero"></div>
+    <div class="avatar">
+      <% if (foto) { %>
+        <img src="<%= foto %>" alt="Foto de <%= nombre %>">
+      <% } else { %>
+        <span class="initials"><%= String(nombre || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '👤' %></span>
+      <% } %>
+    </div>
+    <div class="head">
+      <h1><%= nombre %></h1>
+      <% if (cargo) { %><p class="cargo"><%= cargo %></p><% } %>
+    </div>
+    <% if (bio) { %><div class="bio"><%= bio %></div><% } %>
+    <% if (contacto.telefono || contacto.email) { %>
+    <div class="divider">Contacto</div>
+    <div class="contacts">
+      <% if (contacto.telefono) { %>
+      <div class="crow">
+        <span class="cico">📞</span>
+        <span class="cval">
+          <span class="clabel">Teléfono</span>
+          <a class="cdata" href="tel:<%= urlenc(contacto.telefono) %>"><%= contacto.telefono %></a>
+        </span>
+        <span class="cbtns">
+          <a class="cbtn" href="tel:<%= urlenc(contacto.telefono) %>" aria-label="Llamar">Llamar</a>
+          <button type="button" class="cbtn ghost" data-copy-val="<%= contacto.telefono %>">Copiar</button>
+        </span>
+      </div>
+      <p class="ok" id="copied-tel">✓ Teléfono copiado</p>
+      <% } %>
+      <% if (contacto.email) { %>
+      <div class="crow mail">
+        <span class="cico">✉️</span>
+        <span class="cval">
+          <span class="clabel">Correo</span>
+          <a class="cdata" href="mailto:<%= urlenc(contacto.email) %>"><%= contacto.email %></a>
+        </span>
+        <span class="cbtns">
+          <a class="cbtn" href="mailto:<%= urlenc(contacto.email) %>" aria-label="Escribir">Escribir</a>
+          <button type="button" class="cbtn ghost" data-copy-val="<%= contacto.email %>">Copiar</button>
+        </span>
+      </div>
+      <p class="ok" id="copied-email">✓ Correo copiado</p>
+      <% } %>
+    </div>
+    <div class="save-contact">
+      <a class="save-btn" href="/t/<%= slug %>/contacto.vcf">👤 Guardar en contactos</a>
+      <span class="save-note">Descarga la tarjeta de contacto (vCard) para añadirla a tu agenda.</span>
+    </div>
+    <% } %>
+    <p class="footnote">Tarjeta digital · <%= appNameTag %></p>
+  </main>
+  <script src="/js/public.js?v=<%= v %>"></script>
+</body>
+</html>

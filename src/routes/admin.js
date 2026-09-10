@@ -8,6 +8,7 @@ const { buildWifiString } = require('../wifi');
 const { buildVCard } = require('../contact');
 const { qrPng, qrSvg } = require('../qr');
 const { isValidSlug } = require('../slugs');
+const { circularSvg } = require('../imageUtils');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -27,7 +28,7 @@ function validateTagInput(body, opts = {}) {
   const tipo = ['qr', 'nfc', 'ambos'].includes(body.tipo) ? body.tipo : '';
   if (!tipo) errors.push('Selecciona un tipo de soporte.');
 
-  const modo = ['url', 'wifi', 'contacto', 'desactivado'].includes(body.modo) ? body.modo : '';
+  const modo = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'].includes(body.modo) ? body.modo : '';
   if (!modo) errors.push('Selecciona un modo de destino.');
 
   const estado = ['activo', 'pausado'].includes(body.estado) ? body.estado : 'activo';
@@ -63,10 +64,13 @@ function validateTagInput(body, opts = {}) {
   }
 
   let contacto = null;
-  if (modo === 'contacto') {
+  // Modo Contacto: al menos un dato obligatorio. Modo Presentación: opcionales
+  // (la tarjeta puede ser solo foto + descripción), pero si se aportan deben
+  // ser válidos.
+  if (modo === 'contacto' || modo === 'presentacion') {
     const telefono = String(body.contacto_telefono || '').trim();
     const email = String(body.contacto_email || '').trim().toLowerCase();
-    if (!telefono && !email) {
+    if (modo === 'contacto' && !telefono && !email) {
       errors.push('En modo Contacto, introduce al menos un teléfono o un correo electrónico.');
     }
     if (telefono && !/^\+?[0-9 ()\-./]{6,25}$/.test(telefono)) {
@@ -81,12 +85,38 @@ function validateTagInput(body, opts = {}) {
     contacto = { telefono, email };
   }
 
+  let presentacion = null;
+  if (modo === 'presentacion') {
+    const personaNombre = String(body.pres_persona_nombre || '').trim();
+    if (!personaNombre) errors.push('En modo Presentación, el nombre de la persona es obligatorio.');
+    else if (personaNombre.length > 80) errors.push('El nombre de la persona no puede superar los 80 caracteres.');
+
+    const cargo = String(body.pres_cargo || '').trim();
+    if (cargo.length > 80) errors.push('El cargo no puede superar los 80 caracteres.');
+
+    const bio = String(body.pres_bio || '').trim();
+    if (bio.length > 600) errors.push('La descripción no puede superar los 600 caracteres.');
+
+    // La foto llega como data URL (JPEG ya redimensionado en el navegador).
+    // Se valida formato y tamaño máximo (~300 KB tras la compresión cliente).
+    const foto = String(body.pres_foto_data || '').trim();
+    if (foto) {
+      if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(foto)) {
+        errors.push('La foto debe ser una imagen JPG o PNG válida.');
+      } else if (foto.length > 400 * 1024) {
+        errors.push('La foto es demasiado grande. Usa una imagen de menos de 300 KB.');
+      }
+    }
+    const clearFoto = body.pres_foto_clear === '1';
+    presentacion = { personaNombre, cargo, bio, foto, clearFoto };
+  }
+
   let slug = String(body.slug || '').trim();
   if (slug && !isValidSlug(slug)) {
     errors.push('El slug solo puede contener letras, números, guiones o guiones bajos (3-64 caracteres).');
   }
 
-  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, contacto, slug } };
+  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, contacto, presentacion, slug } };
 }
 
 function createAdminRouter({ db, models, config, auth }) {
@@ -289,7 +319,15 @@ function createAdminRouter({ db, models, config, auth }) {
       : null;
     const contactoPayload = tag.modo === 'contacto'
       ? buildVCard({ nombre: tag.nombre, telefono: tag.contactoTelefono, email: tag.contactoEmail })
-      : null;
+      : tag.modo === 'presentacion'
+        ? buildVCard({
+            nombre: tag.presPersonaNombre || tag.nombre,
+            telefono: tag.contactoTelefono,
+            email: tag.contactoEmail,
+            cargo: tag.presCargo,
+            bio: tag.presBio
+          })
+        : null;
     tag.wifiPassword = tag.modo === 'wifi' ? models.decryptWifiPassword(tag) : null;
     const scans = models.recentScans(tag.id, 10).map((s) => ({
       created_at: s.created_at,
@@ -328,7 +366,7 @@ function createAdminRouter({ db, models, config, auth }) {
   router.get('/tags/:id/editar', (req, res) => {
     const tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
-    const preselectModo = ['url', 'wifi', 'contacto', 'desactivado'].includes(req.query.modo)
+    const preselectModo = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'].includes(req.query.modo)
       ? req.query.modo
       : null;
     res.render('admin/form', {
@@ -370,8 +408,11 @@ function createAdminRouter({ db, models, config, auth }) {
       clearUrl: data.modo !== 'url',
       wifi: data.modo === 'wifi' ? data.wifi : undefined,
       clearWifi: data.modo !== 'wifi',
-      contacto: data.modo === 'contacto' ? data.contacto : undefined,
-      clearContacto: data.modo !== 'contacto'
+      // El contacto se comparte entre los modos Contacto y Presentación.
+      contacto: data.modo === 'contacto' || data.modo === 'presentacion' ? data.contacto : undefined,
+      clearContacto: data.modo !== 'contacto' && data.modo !== 'presentacion',
+      presentacion: buildPresentacionUpdate(data, tag),
+      clearPresentacion: data.modo !== 'presentacion'
     });
     req.session.flash = { type: 'success', msg: 'Tag actualizado correctamente.' };
     res.redirect(`/admin/tags/${id}`);
@@ -405,6 +446,22 @@ function createAdminRouter({ db, models, config, auth }) {
     res.redirect(ref.startsWith('/admin') ? ref : `/admin/tags/${id}`);
   });
 
+  // Entrada validada → parche para models.updateTag. Reglas de la foto:
+  // foto nueva (data URL) la sustituye; «Quitar» la limpia; si no se toca,
+  // se conserva la que hubiera (keepFoto).
+  function buildPresentacionUpdate(data, currentTag) {
+    if (data.modo !== 'presentacion') return undefined;
+    const p = data.presentacion || {};
+    const base = {
+      personaNombre: p.personaNombre,
+      cargo: p.cargo,
+      bio: p.bio
+    };
+    if (p.clearFoto) return { ...base, foto: null, keepFoto: false };
+    if (p.foto) return { ...base, foto: p.foto, keepFoto: false };
+    return { ...base, keepFoto: Boolean(currentTag.presFoto) };
+  }
+
   function qrPayload(tag, req, kind) {
     if (kind === 'wifi' && tag.modo === 'wifi') {
       return buildWifiString({
@@ -415,6 +472,15 @@ function createAdminRouter({ db, models, config, auth }) {
     }
     if (kind === 'contacto' && tag.modo === 'contacto') {
       return buildVCard({ nombre: tag.nombre, telefono: tag.contactoTelefono, email: tag.contactoEmail });
+    }
+    if (kind === 'contacto' && tag.modo === 'presentacion') {
+      return buildVCard({
+        nombre: tag.presPersonaNombre || tag.nombre,
+        telefono: tag.contactoTelefono,
+        email: tag.contactoEmail,
+        cargo: tag.presCargo,
+        bio: tag.presBio
+      });
     }
     return tagPublicUrl(publicBaseUrl(req, config), tag.slug);
   }
@@ -430,10 +496,10 @@ function createAdminRouter({ db, models, config, auth }) {
         message: 'El payload WiFi solo está disponible cuando el Tag está en modo WiFi.'
       });
     }
-    if (kind === 'contacto' && tag.modo !== 'contacto') {
+    if (kind === 'contacto' && tag.modo !== 'contacto' && tag.modo !== 'presentacion') {
       return res.status(400).render('admin/error', {
         status: 400,
-        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto.'
+        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto o Presentación.'
       });
     }
     const png = await qrPng(qrPayload(tag, req, kind));
@@ -453,10 +519,10 @@ function createAdminRouter({ db, models, config, auth }) {
         message: 'El payload WiFi solo está disponible cuando el Tag está en modo WiFi.'
       });
     }
-    if (kind === 'contacto' && tag.modo !== 'contacto') {
+    if (kind === 'contacto' && tag.modo !== 'contacto' && tag.modo !== 'presentacion') {
       return res.status(400).render('admin/error', {
         status: 400,
-        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto.'
+        message: 'El payload de contacto solo está disponible cuando el Tag está en modo Contacto o Presentación.'
       });
     }
     const svg = await qrSvg(qrPayload(tag, req, kind));
@@ -464,6 +530,24 @@ function createAdminRouter({ db, models, config, auth }) {
     res.set('Content-Disposition', `attachment; filename="qr-${tag.slug}.svg"`);
     res.send(svg);
   }));
+
+  // Descarga de la foto de presentación recortada en círculo: SVG vectorial
+  // con la imagen incrustada y clip circular (fondo transparente, nitidez a
+  // cualquier tamaño, sin dependencias nativas).
+  router.get('/tags/:id/foto.png', (req, res) => {
+    const tag = models.getTagById(parseId(req.params.id));
+    if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
+    if (tag.modo !== 'presentacion' || !tag.presFoto) {
+      return res.status(404).render('admin/error', { status: 404, message: 'Este Tag no tiene foto de presentación.' });
+    }
+    const svg = circularSvg(tag.presFoto);
+    if (!svg) {
+      return res.status(400).render('admin/error', { status: 400, message: 'La foto guardada no es una imagen válida.' });
+    }
+    res.set('Content-Type', 'image/svg+xml');
+    res.set('Content-Disposition', `attachment; filename="foto-${tag.slug}.svg"`);
+    res.send(svg);
+  });
 
   return router;
 }

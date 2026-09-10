@@ -656,3 +656,178 @@ test('el escaneo guarda ubicación y el detalle la muestra', async () => {
   assert.match(detail.body, /google\.com\/maps/);
   assert.match(detail.body, /IP privada o local: imposible geolocalizar/);
 });
+
+test('modo Presentación: tarjeta con foto circular, descripción y contacto al final', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // Data URL válida (formato JPEG en base64; el contenido no necesita ser una imagen real para la suite).
+  const foto = `data:image/jpeg;base64,${'A'.repeat(200)}`;
+
+  // 1. Crear tag en modo Presentación con foto, cargo, descripción y contacto
+  const formPage = await get('/admin/tags/nuevo');
+  const csrf = getCsrf(formPage.body);
+  const createRes = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Tarjeta María',
+    tipo: 'ambos',
+    modo: 'presentacion',
+    pres_persona_nombre: 'María García',
+    pres_cargo: 'Directora Comercial',
+    pres_bio: 'Ayudo a las empresas a crecer con estrategias digitales.',
+    contacto_telefono: '+34 622 333 444',
+    contacto_email: 'maria@empresa.com',
+    pres_foto_data: foto,
+    estado: 'activo'
+  });
+  assert.equal(createRes.statusCode, 302);
+  const id = Number(createRes.headers.location.split('/').pop());
+  const tag = models.getTagById(id);
+  assert.equal(tag.modo, 'presentacion');
+  assert.equal(tag.presPersonaNombre, 'María García');
+  assert.equal(tag.presCargo, 'Directora Comercial');
+  assert.equal(tag.presBio, 'Ayudo a las empresas a crecer con estrategias digitales.');
+  assert.equal(tag.presFoto, foto);
+  assert.equal(tag.contactoTelefono, '+34 622 333 444');
+
+  // 2. Página pública: foto circular, nombre, cargo, descripción y contacto al final
+  const pub = await req(`/t/${tag.slug}`);
+  assert.equal(pub.statusCode, 200);
+  assert.match(pub.body, /María García/);
+  assert.match(pub.body, /Directora Comercial/);
+  assert.match(pub.body, /estrategias digitales/);
+  assert.match(pub.body, /src="data:image\/jpeg;base64,/);
+  assert.match(pub.body, /href="tel:/);
+  assert.match(pub.body, /href="mailto:/);
+  assert.match(pub.body, /Guardar en contactos/);
+
+  // 3. vCard pública con nombre, cargo y descripción
+  const vcf = await req(`/t/${tag.slug}/contacto.vcf`);
+  assert.equal(vcf.statusCode, 200);
+  assert.match(vcf.headers['content-type'], /text\/vcard/);
+  assert.match(vcf.body, /BEGIN:VCARD/);
+  assert.match(vcf.body, /FN:María García/);
+  assert.match(vcf.body, /TITLE:Directora Comercial/);
+  assert.match(vcf.body, /TEL;TYPE=CELL:\+34622333444/);
+  assert.match(vcf.body, /EMAIL:maria@empresa\.com/);
+  assert.match(vcf.body, /NOTE:ayudo a las empresas/i);
+
+  // 4. Detalle del panel: resumen de la presentación y descarga circular
+  const detail = await get(`/admin/tags/${id}`);
+  assert.equal(detail.statusCode, 200);
+  assert.match(detail.body, /Presentación personal/);
+  assert.match(detail.body, /María García/);
+  assert.match(detail.body, /foto\.png/);
+
+  // 5. QR de presentación (vCard) descargable en PNG y SVG
+  const qr = await get(`/admin/tags/${id}/qr.png?payload=contacto`);
+  assert.equal(qr.statusCode, 200);
+  assert.equal(qr.headers['content-type'], 'image/png');
+  const qrSvg = await get(`/admin/tags/${id}/qr.svg?payload=contacto`);
+  assert.equal(qrSvg.statusCode, 200);
+  assert.match(qrSvg.headers['content-type'], /svg/);
+
+  // 6. Descarga de la foto circular (SVG con clip)
+  const fotoDl = await get(`/admin/tags/${id}/foto.png`);
+  assert.equal(fotoDl.statusCode, 200);
+  assert.match(fotoDl.headers['content-type'], /svg/);
+  assert.match(fotoDl.body, /clipPath/);
+  assert.match(fotoDl.body, /circle/);
+
+  // 7. Editar sin tocar la foto la conserva
+  const editPage = await get(`/admin/tags/${id}/editar`);
+  const csrf2 = getCsrf(editPage.body);
+  const keepRes = await post(`/admin/tags/${id}`, {
+    _csrf: csrf2,
+    nombre: 'Tarjeta María',
+    tipo: 'ambos',
+    modo: 'presentacion',
+    pres_persona_nombre: 'María García López',
+    pres_cargo: 'Directora Comercial',
+    pres_bio: 'Nueva descripción.',
+    contacto_telefono: '+34 622 333 444',
+    contacto_email: 'maria@empresa.com',
+    estado: 'activo'
+  });
+  assert.equal(keepRes.statusCode, 302);
+  assert.equal(models.getTagById(id).presFoto, foto, 'la foto se conserva al editar sin tocarla');
+
+  // 8. «Quitar foto» la limpia
+  const rmRes = await post(`/admin/tags/${id}`, {
+    _csrf: csrf2,
+    nombre: 'Tarjeta María',
+    tipo: 'ambos',
+    modo: 'presentacion',
+    pres_persona_nombre: 'María García López',
+    pres_cargo: '',
+    pres_bio: '',
+    contacto_telefono: '+34 622 333 444',
+    contacto_email: 'maria@empresa.com',
+    pres_foto_clear: '1',
+    estado: 'activo'
+  });
+  assert.equal(rmRes.statusCode, 302);
+  assert.equal(models.getTagById(id).presFoto, null);
+
+  // 9. Validación: sin nombre de persona → 400; foto con formato inválido → 400
+  const badName = await post('/admin/tags', {
+    _csrf: csrf, nombre: 'Sin nombre', tipo: 'qr', modo: 'presentacion', estado: 'activo'
+  });
+  assert.equal(badName.statusCode, 400);
+  assert.match(badName.body, /nombre de la persona es obligatorio/);
+
+  const badFoto = await post('/admin/tags', {
+    _csrf: csrf, nombre: 'Foto mala', tipo: 'qr', modo: 'presentacion',
+    pres_persona_nombre: 'Alguien', pres_foto_data: 'data:image/gif;base64,AAAA', estado: 'activo'
+  });
+  assert.equal(badFoto.statusCode, 400);
+  assert.match(badFoto.body, /JPG o PNG/);
+
+  // Limpieza
+  models.deleteTag(id);
+});
+
+test('flujo de venta con Presentación: stock → configurar → tarjeta del comprador', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Stock genérico pendiente
+  const stock = models.listTagsByModo('desactivado');
+  assert.ok(stock.length >= 1);
+  const target = stock[0];
+
+  // 2. El enlace «Presentación» preselecciona el modo en el formulario
+  const editPage = await get(`/admin/tags/${target.id}/editar?modo=presentacion`);
+  assert.equal(editPage.statusCode, 200);
+  assert.match(editPage.body, /value="presentacion" checked/);
+  assert.match(editPage.body, /Presentación personal/);
+
+  // 3. Configurar con los datos del comprador → la misma URL sirve la tarjeta
+  const csrf = getCsrf(editPage.body);
+  const saveRes = await post(`/admin/tags/${target.id}`, {
+    _csrf: csrf,
+    nombre: 'Cliente Presentación',
+    tipo: 'ambos',
+    modo: 'presentacion',
+    pres_persona_nombre: 'Luis Pérez',
+    pres_cargo: 'Consultor',
+    pres_bio: 'Tarjeta de ejemplo.',
+    contacto_telefono: '600111222',
+    estado: 'activo'
+  });
+  assert.equal(saveRes.statusCode, 302);
+  const vendido = models.getTagById(target.id);
+  assert.equal(vendido.modo, 'presentacion');
+  assert.equal(vendido.presPersonaNombre, 'Luis Pérez');
+
+  const pub = await req(`/t/${vendido.slug}`);
+  assert.equal(pub.statusCode, 200);
+  assert.match(pub.body, /Luis Pérez/);
+  // Sin foto: se muestran las iniciales como avatar
+  assert.match(pub.body, /initials|LP/, 'avatar con iniciales cuando no hay foto');
+
+  // Limpieza: devolver el tag a desactivado para otros tests
+  models.updateTag(target.id, { modo: 'desactivado' });
+});

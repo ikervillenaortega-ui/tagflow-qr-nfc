@@ -3,6 +3,7 @@ const express = require('express');
 const { detectOS, isHttpUrl, clientIp } = require('../helpers');
 const { ipToLocation } = require('../geo');
 const { buildAndroidWifiCredential } = require('../wifi');
+const { buildVCard } = require('../contact');
 
 function createPublicRouter({ db, models, config }) {
   const router = express.Router();
@@ -86,10 +87,51 @@ function createPublicRouter({ db, models, config }) {
       });
     }
 
+    if (tag.modo === 'presentacion') {
+      const contacto = {
+        telefono: tag.contactoTelefono || '',
+        email: tag.contactoEmail || ''
+      };
+      const persona = tag.presPersonaNombre || tag.nombre;
+      return res.render('public/presentacion', {
+        title: `${persona} · Presentación`,
+        slug: tag.slug,
+        appNameTag: config.appName,
+        nombre: persona,
+        cargo: tag.presCargo || '',
+        bio: tag.presBio || '',
+        foto: tag.presFoto || '',
+        contacto
+      });
+    }
+
     return res.render('public/disabled', {
       title: 'Código sin configurar',
       message: 'El propietario aún no ha asignado un destino a este código. Vuelve a intentarlo más tarde.'
     });
+  });
+
+  // Descarga pública de la vCard (modo Contacto y modo Presentación): los
+  // móviles la ofrecen como «guardar contacto» al abrirla.
+  router.get('/t/:slug/contacto.vcf', (req, res) => {
+    const slug = String(req.params.slug);
+    const tag = models.getTagBySlug(slug);
+    res.set('X-Robots-Tag', 'noindex');
+    if (!tag || (tag.modo !== 'contacto' && tag.modo !== 'presentacion') || tag.estado !== 'activo') {
+      return res.status(404).send('Tarjeta de contacto no disponible.');
+    }
+    const vcard = tag.modo === 'presentacion'
+      ? buildVCard({
+          nombre: tag.presPersonaNombre || tag.nombre,
+          telefono: tag.contactoTelefono,
+          email: tag.contactoEmail,
+          cargo: tag.presCargo,
+          bio: tag.presBio
+        })
+      : buildVCard({ nombre: tag.nombre, telefono: tag.contactoTelefono, email: tag.contactoEmail });
+    res.set('Content-Type', 'text/vcard; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="contacto-${tag.slug}.vcf"`);
+    res.send(vcard);
   });
 
   return router;
