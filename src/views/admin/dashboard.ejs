@@ -90,6 +90,7 @@
         <% if (tag.modo === 'desactivado') { %>
           <a class="btn btn-sm btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto" title="Poner el teléfono y el correo del comprador">Configurar (venta)</a>
           <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar?modo=presentacion" title="Crear la presentación personal del comprador">Presentación</a>
+          <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar?modo=alojamiento" title="Convertirlo en la guía del huésped de un alojamiento">🏡 Alojamiento</a>
         <% } %>
         <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>">Ver</a>
         <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar">Editar</a>

@@ -29,10 +29,27 @@ function blocksByLangFor(models, tag) {
 
 // ---------- Modo Alojamiento: extracción y persistencia por idioma ----------
 
-// Los formularios traen los bloques por idioma con el prefijo b_{idioma}_
-// (b_es_acceso_texto, b_en_normas_texto…). Se convierten al cuerpo plano que
-// espera validateAlojamientoInput y se validan todos los idiomas marcados
-// como presentes (b_{idioma}_present = 1).
+// Los formularios traen los bloques por idioma con el prefijo b_{idioma}_.
+// El editor de filas envía b_{idioma}_{bloque}_{n}_{campo} y un marker
+// b_{idioma}_{bloque}_present; el formato legado enviaba un textarea con
+// líneas «a|b|c». Ambos se convierten al cuerpo que espera
+// validateAlojamientoInput y se validan todos los idiomas marcados.
+function collectRows(body, lang, kind, fields) {
+  if (body[`b_${lang}_${kind}_present`] === undefined) return undefined;
+  const rows = [];
+  for (let i = 0; i < 60; i++) {
+    const values = {};
+    let seen = false;
+    for (const f of fields) {
+      const raw = body[`b_${lang}_${kind}_${i}_${f}`];
+      if (raw !== undefined) { values[f] = String(raw); seen = true; }
+    }
+    if (!seen) break;
+    rows.push(values);
+  }
+  return rows;
+}
+
 function collectAlojamiento(body, tag, models, secret) {
   const existingWifi = new Map();
   if (tag) {
@@ -41,7 +58,9 @@ function collectAlojamiento(body, tag, models, secret) {
       try { existingWifi.set(row.language, JSON.parse(row.content)); } catch { /* fila corrupta: se ignora */ }
     }
   }
-  const langs = LANGUAGES.filter((lang) => body[`b_${lang}_present`] === '1');
+  // Todos los idiomas que el formulario trae marcados (0 o 1): los marcados
+  // con 0 se validan vacíos y al guardar limpian bloques obsoletos de ese idioma.
+  const langs = LANGUAGES.filter((lang) => body[`b_${lang}_present`] !== undefined);
   const errors = [];
   const perLang = new Map();
   for (const lang of langs) {
@@ -50,9 +69,9 @@ function collectAlojamiento(body, tag, models, secret) {
       acceso_texto: body[`b_${lang}_acceso_texto`],
       aloj_wifi_ssid: body[`b_${lang}_aloj_wifi_ssid`],
       aloj_wifi_password: body[`b_${lang}_aloj_wifi_password`],
-      normas_texto: body[`b_${lang}_normas_texto`],
-      manual_texto: body[`b_${lang}_manual_texto`],
-      recomendaciones_texto: body[`b_${lang}_recomendaciones_texto`],
+      normas_texto: collectRows(body, lang, 'normas', ['text']) ?? body[`b_${lang}_normas_texto`],
+      manual_texto: collectRows(body, lang, 'manual', ['title', 'description', 'media_url']) ?? body[`b_${lang}_manual_texto`],
+      recomendaciones_texto: collectRows(body, lang, 'recomendaciones', ['title', 'category', 'description']) ?? body[`b_${lang}_recomendaciones_texto`],
       aloj_contacto_whatsapp: body[`b_${lang}_aloj_contacto_whatsapp`],
       aloj_contacto_telefono: body[`b_${lang}_aloj_contacto_telefono`],
       aloj_contacto_email: body[`b_${lang}_aloj_contacto_email`],
@@ -71,7 +90,9 @@ function collectAlojamiento(body, tag, models, secret) {
 // y quedó vacío, la fila de ese idioma se elimina; si trae contenido, se
 // crea/actualiza. Los idiomas no marcados como presentes no se tocan.
 function saveAlojamientoBlocks(models, tagId, langs, perLang, body) {
-  const present = (lang, key) => body[`b_${lang}_${key}`] !== undefined;
+  const present = (lang, key, marker) =>
+    body[`b_${lang}_${key}`] !== undefined ||
+    (marker !== undefined && body[`b_${lang}_${marker}_present`] !== undefined);
   for (const lang of langs) {
     const blocks = perLang.get(lang) || {};
     const ensure = (type, presentFlag, content) => {
@@ -81,9 +102,9 @@ function saveAlojamientoBlocks(models, tagId, langs, perLang, body) {
     };
     ensure('acceso', present(lang, 'acceso_texto'), blocks.acceso);
     ensure('wifi', present(lang, 'aloj_wifi_ssid'), blocks.wifi);
-    ensure('normas', present(lang, 'normas_texto'), blocks.normas);
-    ensure('manual', present(lang, 'manual_texto'), blocks.manual);
-    ensure('recomendaciones', present(lang, 'recomendaciones_texto'), blocks.recomendaciones);
+    ensure('normas', present(lang, 'normas_texto', 'normas'), blocks.normas);
+    ensure('manual', present(lang, 'manual_texto', 'manual'), blocks.manual);
+    ensure('recomendaciones', present(lang, 'recomendaciones_texto', 'recomendaciones'), blocks.recomendaciones);
     ensure(
       'contacto',
       present(lang, 'aloj_contacto_whatsapp') || present(lang, 'aloj_contacto_telefono') || present(lang, 'aloj_contacto_email'),
@@ -96,6 +117,21 @@ function saveAlojamientoBlocks(models, tagId, langs, perLang, body) {
 function parseId(value) {
   const n = parseInt(String(value), 10);
   return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+// Normaliza el UID de un chip NFC tal como lo informa Web NFC
+// (serialNumber: hex con «:», p. ej. «04:A3:B2:C1:5B:6A:80»). Devuelve el UID
+// mayúsculas sin separadores (p. ej. «04A3B2C15B6A80»), o false si es
+// inválido, o null si va vacío (desvincular).
+function normalizeNfcUid(value) {
+  const raw = String(value == null ? '' : value).trim().toUpperCase();
+  if (!raw) return null;
+  const hex = raw.replace(/[^0-9A-F]/g, '');
+  if (hex.length < 4 || hex.length > 32) return false;
+  // Debe ser prácticamente todo hex: los separadores no cuentan, pero si queda
+  // muy poco hex respecto al original es basura.
+  if (hex.length < Math.ceil(raw.length / 2)) return false;
+  return hex;
 }
 
 function validateTagInput(body, opts = {}) {
@@ -197,7 +233,15 @@ function validateTagInput(body, opts = {}) {
     errors.push('El slug solo puede contener letras, números, guiones o guiones bajos (3-64 caracteres).');
   }
 
-  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, contacto, presentacion, slug } };
+  // Chip NFC: UID hexadecimal (el serial que lee el móvil, p. ej. NTAG213) y
+  // modelo declarado. Opcional: vacío desvincula el chip de la ficha.
+  const nfcUid = normalizeNfcUid(body.nfc_uid);
+  if (nfcUid === false) {
+    errors.push('El UID del chip NFC debe ser hexadecimal (se admiten separadores : o espacios), entre 4 y 32 dígitos.');
+  }
+  const nfcModelo = String(body.nfc_modelo || '').trim().toUpperCase().slice(0, 40) || null;
+
+  return { errors, data: { nombre, tipo, modo, estado, urlDestino, wifi, contacto, presentacion, slug, nfcUid, nfcModelo } };
 }
 
 function createAdminRouter({ db, models, config, auth }) {
@@ -211,10 +255,13 @@ function createAdminRouter({ db, models, config, auth }) {
   router.get('/alojamientos', (req, res) => {
     const q = String(req.query.q || '').trim();
     const list = models.listTags({ q, modo: 'alojamiento', page: req.query.page });
+    const vendidos = models.listTagsByModo('desactivado');
     res.render('admin/alojamientos', {
       title: 'Alojamientos',
       active: 'alojamientos',
       list,
+      vendidos,
+      pendientesVenta: vendidos.length,
       filters: { q }
     });
   });
@@ -273,6 +320,70 @@ function createAdminRouter({ db, models, config, auth }) {
   });
 
   // Creación masiva de tags genéricos (stock para vender, aún sin configurar)
+  // ---------- Identificación del chip NFC (p. ej. NTAG213) ----------
+
+  // Página «Identificar chip»: leer el chip con el móvil (Web NFC) o escribir
+  // su UID a mano, y asociarlo a una ficha existente.
+  router.get('/nfc', (req, res) => {
+    const porUid = models.listTagsByModo('desactivado').filter((t) => t.nfcUid);
+    // Búsqueda manual por UID (?uid=…) desde el formulario de la página.
+    const uidParam = normalizeNfcUid(req.query.uid);
+    const prefillFound = uidParam && uidParam !== false ? { uid: uidParam, tag: models.getTagByNfcUid(uidParam) } : null;
+    res.render('admin/nfc', {
+      title: 'Identificar chip NFC',
+      active: 'nfc',
+      chips: porUid,
+      pendientes: porUid.length,
+      tags: models.listAllTags(),
+      prefill: uidParam && uidParam !== false ? uidParam : String(req.query.uid || '').slice(0, 64),
+      prefillFound
+    });
+  });
+
+  // Guardar (o cambiar) la tarjeta asociada a un UID leído.
+  router.post('/nfc', (req, res) => {
+    const uid = normalizeNfcUid(req.body.uid);
+    if (!uid || uid === false) {
+      req.session.flash = { type: 'error', msg: 'UID no válido: acérca el chip al móvil o escríbelo en hexadecimal.' };
+      return res.redirect('/admin/nfc');
+    }
+    const accion = String(req.body.accion || '');
+    if (accion === 'desvincular') {
+      const tag = models.getTagByNfcUid(uid);
+      if (tag) {
+        models.updateTag(tag.id, { nfcUid: null });
+        req.session.flash = { type: 'success', msg: `Chip ${uid} desvinculado de «${tag.nombre}».` };
+      } else {
+        req.session.flash = { type: 'error', msg: `Ninguna ficha tiene el chip ${uid}.` };
+      }
+      return res.redirect('/admin/nfc');
+    }
+    const tagId = parseId(req.body.tag_id);
+    const tag = models.getTagById(tagId);
+    if (!tag) {
+      req.session.flash = { type: 'error', msg: 'Selecciona la tarjeta que corresponde a ese chip.' };
+      return res.redirect(`/admin/nfc?uid=${encodeURIComponent(uid)}`);
+    }
+    const otro = models.getTagByNfcUid(uid);
+    if (otro && otro.id !== tag.id) {
+      // Reasignación explícita: el chip pasa a la ficha elegida.
+      models.updateTag(otro.id, { nfcUid: null });
+    }
+    models.updateTag(tag.id, { nfcUid: uid, nfcModelo: String(req.body.modelo || '').trim().toUpperCase().slice(0, 40) || (tag.nfcModelo || 'NTAG213') });
+    req.session.flash = { type: 'success', msg: `Chip ${uid} guardado en «${tag.nombre}». Ya puedes configurarlo sabiendo exactamente qué tarjeta es.` };
+    res.redirect(`/admin/tags/${tag.id}`);
+  });
+
+  // API JSON para la lectura en vivo con Web NFC: comprueba si el UID leído
+  // ya pertenece a una ficha y devuelve su nombre (o null = chip nuevo).
+  router.get('/nfc/buscar.json', (req, res) => {
+    const uid = normalizeNfcUid(req.query.uid);
+    if (!uid || uid === false) return res.json({ found: false, uid: null });
+    const tag = models.getTagByNfcUid(uid);
+    if (tag) return res.json({ found: true, uid, tagId: tag.id, nombre: tag.nombre, slug: tag.slug, modo: tag.modo, estado: tag.estado });
+    res.json({ found: false, uid });
+  });
+
   router.get('/tags/masivo', (req, res) => {
     res.render('admin/bulk', {
       title: 'Generar Tags en lote',
@@ -427,6 +538,19 @@ function createAdminRouter({ db, models, config, auth }) {
     }
     let tag;
     try {
+      if (data.nfcUid && models.getTagByNfcUid(data.nfcUid)) {
+        const otro = models.getTagByNfcUid(data.nfcUid);
+        return res.status(400).render('admin/form', {
+          title: 'Nuevo Tag',
+          active: 'new',
+          tag: null,
+          errors: [`Ese chip NFC ya está asociado a «${otro.nombre}». Un chip físico solo puede pertenecer a una ficha.`],
+          values: req.body || {},
+          preselectModo: null,
+          slugPreview: 'tu-slug',
+          blocksByLang: {}
+        });
+      }
       tag = models.createTag(data);
     } catch (err) {
       if (err.code === 'SLUG_TAKEN') {
@@ -510,11 +634,19 @@ function createAdminRouter({ db, models, config, auth }) {
 
   // Editar (con ?modo=... se preselecciona ese modo: flujo «configurar al vender»)
   router.get('/tags/:id/editar', (req, res) => {
-    const tag = models.getTagById(parseId(req.params.id));
+    let tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
     const preselectModo = ['url', 'wifi', 'contacto', 'presentacion', 'alojamiento', 'desactivado'].includes(req.query.modo)
       ? req.query.modo
       : null;
+    // Un chip recién leído (p. ej. desde «Identificar chip») llega aquí para
+    // quedar grabado en la ficha.
+    const uidParam = normalizeNfcUid(req.query.uid);
+    if (uidParam && uidParam !== false && !tag.nfcUid) {
+      models.updateTag(tag.id, { nfcUid: uidParam, nfcModelo: tag.nfcModelo || 'NTAG213' });
+      tag = models.getTagById(tag.id);
+      req.session.flash = { type: 'success', msg: `Chip ${uidParam} vinculado a esta tarjeta.` };
+    }
     // Bloques de alojamiento agrupados por idioma (para las pestañas del formulario).
     res.render('admin/form', {
       title: 'Editar Tag',
@@ -558,11 +690,29 @@ function createAdminRouter({ db, models, config, auth }) {
       });
     }
 
+    if (data.nfcUid) {
+      const otro = models.getTagByNfcUid(data.nfcUid);
+      if (otro && otro.id !== id) {
+        return res.status(400).render('admin/form', {
+          title: 'Editar Tag',
+          active: 'tags',
+          tag,
+          errors: [`Ese chip NFC ya está asociado a «${otro.nombre}». Un chip físico solo puede pertenecer a una ficha.`],
+          values: req.body || {},
+          preselectModo: null,
+          slugPreview: tag.slug,
+          blocksByLang: blocksByLangFor(tag)
+        });
+      }
+    }
+
     models.updateTag(id, {
       nombre: data.nombre,
       tipo: data.tipo,
       modo: data.modo,
       estado: data.estado,
+      nfcUid: data.nfcUid || null,
+      nfcModelo: data.nfcModelo,
       urlDestino: data.modo === 'url' ? data.urlDestino : undefined,
       clearUrl: data.modo !== 'url',
       wifi: data.modo === 'wifi' ? data.wifi : undefined,
@@ -717,4 +867,4 @@ function createAdminRouter({ db, models, config, auth }) {
   return router;
 }
 
-module.exports = { createAdminRouter, validateTagInput };
+module.exports = { createAdminRouter, validateTagInput, normalizeNfcUid };

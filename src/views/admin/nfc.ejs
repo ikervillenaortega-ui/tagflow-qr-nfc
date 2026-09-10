@@ -1,0 +1,100 @@
+<%- include('partials/header', { active: 'nfc' }) %>
+
+<section class="panel">
+  <h1>Identificar chip NFC</h1>
+  <p class="muted">
+    Cada tarjeta física lleva un chip (p. ej. <strong>NTAG213</strong>) con un <strong>UID único</strong> grabado de fábrica.
+    Lee el chip con el móvil y lo asocias a su ficha: así siempre sabrás qué tarjeta estás configurando.
+  </p>
+
+  <div class="nfc-read-box">
+    <h2>1 · Lee el chip</h2>
+    <div id="nfc-web" hidden>
+      <button type="button" class="btn btn-primary" id="nfc-read-btn">📡 Leer chip NFC</button>
+      <p class="muted">Acerca la tarjeta a la parte trasera del móvil y mantenla quieta un segundo.</p>
+    </div>
+    <div id="nfc-nosupport">
+      <p class="muted">
+        Este navegador no soporta lectura NFC (Web NFC solo está disponible en Chrome/Edge para Android).
+        En el móvil: abre esta misma página con Chrome y pulsa «Leer chip NFC».
+      </p>
+    </div>
+    <p class="nfc-status" id="nfc-status">Esperando lectura…</p>
+  </div>
+
+  <div class="nfc-result" id="nfc-result" hidden>
+    <h2>2 · Chip leído</h2>
+    <dl class="def-grid">
+      <dt>UID del chip</dt>
+      <dd><code class="code-block" id="nfc-uid-display"></code></dd>
+      <dt>Modelo probable</dt>
+      <dd id="nfc-model-hint">—</dd>
+      <dt>Estado en el panel</dt>
+      <dd id="nfc-known">—</dd>
+    </dl>
+    <form method="post" action="/admin/nfc" class="nfc-assign">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="uid" id="nfc-uid-input" value="">
+      <label>Asignar a la tarjeta
+        <select name="tag_id" required>
+          <option value="" disabled selected>Elige la ficha…</option>
+          <% tags.forEach((t) => { %>
+            <option value="<%= t.id %>"><%= t.nombre %> · /t/<%= t.slug %><%= t.modo === 'desactivado' ? ' (sin configurar)' : '' %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Modelo del chip
+        <input type="text" name="modelo" maxlength="40" placeholder="NTAG213">
+      </label>
+      <button type="submit" class="btn btn-primary">Guardar chip en la tarjeta</button>
+    </form>
+  </div>
+
+  <div class="nfc-manual">
+    <h2>O escríbelo a mano</h2>
+    <p class="muted">Si el chip ya viene impreso en la tarjeta o lo leíste con otra app (NFC Tools muestra el UID en «OTRAS» → «Datos técnicos»), escríbelo aquí: se admiten separadores <code>:</code> o espacios.</p>
+    <form method="get" action="/admin/nfc" class="nfc-manual-form">
+      <input type="text" name="uid" value="<%= prefill %>" placeholder="04:A3:B2:C1:5B:6A:80" maxlength="64">
+      <button type="submit" class="btn">Buscar UID</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Tarjetas con chip identificado</h2>
+  <% if (prefillFound) { %>
+    <p class="flash flash-info">
+      El UID <strong><%= prefillFound.uid %></strong> <% if (prefillFound.tag) { %>pertenece a
+      <a href="/admin/tags/<%= prefillFound.tag.id %>"><strong><%= prefillFound.tag.nombre %></strong></a> (<%= prefillFound.tag.modo %>).<% } else { %>no está asociado a ninguna ficha todavía.<% } %>
+    </p>
+  <% } %>
+  <% if (chips.length === 0) { %>
+    <p class="muted">Todavía no hay tarjetas con chip identificado. Lee una tarjeta con el móvil y asígnala a su ficha.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Chip (UID)</th><th>Tarjeta</th><th>Modelo</th><th>Modo</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% chips.forEach((t) => { %>
+          <tr>
+            <td><code><%= t.nfcUid %></code></td>
+            <td><a href="/admin/tags/<%= t.id %>"><%= t.nombre %></a></td>
+            <td><%= t.nfcModelo || '—' %></td>
+            <td><%= t.modo === 'desactivado' ? 'Sin configurar' : t.modo %></td>
+            <td>
+              <form method="post" action="/admin/nfc" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="uid" value="<%= t.nfcUid %>">
+                <input type="hidden" name="accion" value="desvincular">
+                <button type="submit" class="btn btn-sm">Desvincular</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

@@ -4,3 +4,4 @@ data/
 *.log
 # Freebuff interno (no va al repositorio)
 .freebuff/
+BACKUP-DATOS/

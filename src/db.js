@@ -226,6 +226,19 @@ const MIGRATIONS = [
 
       CREATE INDEX IF NOT EXISTS idx_tag_blocks_tag ON tag_blocks(tag_id);
     `
+  },
+  {
+    // Identificación del chip NFC físico: UID hexadecimal que lee el navegador
+    // con Web NFC (serialNumber) — p. ej. los NTAG213. Enlaza la tarjeta de
+    // plástico con su ficha del panel y permite saber siempre qué tarjeta es
+    // cuál antes de configurarla. nfc_modelo registra el modelo declarado
+    // (NTAG213, NTAG215…); nfc_uid NULL = tarjeta aún sin identificar.
+    version: 9,
+    sql: `
+      ALTER TABLE tags ADD COLUMN nfc_uid TEXT;
+      ALTER TABLE tags ADD COLUMN nfc_modelo TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_nfc_uid ON tags(nfc_uid) WHERE nfc_uid IS NOT NULL;
+    `
   }
 ];
 

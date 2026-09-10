@@ -5,6 +5,7 @@
     <% if (tag.modo === 'desactivado') { %>
       <a class="btn btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a>
       <a class="btn" href="/admin/tags/<%= tag.id %>/editar?modo=presentacion">Crear presentación</a>
+      <a class="btn" href="/admin/tags/<%= tag.id %>/editar?modo=alojamiento">🏡 Configurar como alojamiento</a>
     <% } %>
     <% if (tag.modo === 'alojamiento') { %>
       <a class="btn" href="/t/<%= tag.slug %>" target="_blank" rel="noopener">👁 Ver página del huésped</a>
@@ -197,6 +198,32 @@
 
 <section class="panel">
   <h2>Payload NFC</h2>
+  <div class="nfc-chip-box <%= tag.nfcUid ? 'nfc-chip-ok' : 'nfc-chip-pending' %>">
+    <% if (tag.nfcUid) { %>
+      <div class="nfc-chip-info">
+        <span class="nfc-chip-icon">🔖</span>
+        <div>
+          <strong>Chip identificado: <%= tag.nfcModelo || 'NFC' %></strong>
+          <div class="muted">UID <code><%= tag.nfcUid %></code> — esta tarjeta física es esta ficha.</div>
+        </div>
+      </div>
+      <form method="post" action="/admin/nfc" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="uid" value="<%= tag.nfcUid %>">
+        <input type="hidden" name="accion" value="desvincular">
+        <button type="submit" class="btn btn-sm">Desvincular chip</button>
+      </form>
+    <% } else { %>
+      <div class="nfc-chip-info">
+        <span class="nfc-chip-icon">❓</span>
+        <div>
+          <strong>Chip sin identificar</strong>
+          <div class="muted">Lee la tarjeta con el móvil para saber exactamente cuál es y evitar confusiones al configurarla.</div>
+        </div>
+      </div>
+      <a class="btn btn-sm" href="/admin/nfc">Identificar chip</a>
+    <% } %>
+  </div>
   <p class="muted">Escribe uno de estos valores en la etiqueta con una app de escritura NFC (ej. NFC Tools, TagWriter) o desde el navegador si es compatible (Chrome en Android).</p>
   <div class="copy-row">
     <span class="label">URL (recomendado)</span>

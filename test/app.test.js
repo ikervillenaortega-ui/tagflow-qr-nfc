@@ -6,6 +6,7 @@ const inject = require('light-my-request');
 const { openDb } = require('../src/db');
 const { createModels } = require('../src/models');
 const { createApp } = require('../src/app');
+const { normalizeNfcUid } = require('../src/routes/admin');
 
 const TEST_CONFIG = {
   root: process.cwd(),
@@ -987,4 +988,186 @@ test('módulo Alojamiento: bloques multi-idioma, WiFi cifrado, despedida y dupli
 
   // Limpieza
   models.deleteTag(dupId);
+});
+
+test('venta de tarjeta → Alojamiento: el stock sin configurar se convierte en guía del huésped', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Stock pendiente de vender
+  const stock = models.listTagsByModo('desactivado');
+  assert.ok(stock.length >= 1);
+  const target = stock[0];
+
+  // 2. El dashboard ofrece «🏡 Alojamiento» para el tag vendido
+  const dash = await get('/admin/tags');
+  assert.match(dash.body, new RegExp(`/admin/tags/${target.id}/editar\\?modo=alojamiento`));
+
+  // 3. La página de Alojamientos lista las tarjetas vendidas por configurar
+  const alojs = await get('/admin/alojamientos');
+  assert.match(alojs.body, /esperan configuración|espera configuración/);
+  assert.ok(alojs.body.includes(`/admin/tags/${target.id}/editar?modo=alojamiento`));
+
+  // 4. Configurar con el formato del editor de filas (b_{lang}_{block}_{n}_{campo})
+  const editPage = await get(`/admin/tags/${target.id}/editar?modo=alojamiento`);
+  assert.equal(editPage.statusCode, 200);
+  const csrf = getCsrf(editPage.body);
+  const saveRes = await post(`/admin/tags/${target.id}`, {
+    _csrf: csrf,
+    nombre: 'Ático Marina',
+    tipo: 'nfc',
+    modo: 'alojamiento',
+    estado: 'activo',
+    aloj_idioma: 'es',
+    b_es_present: '1',
+    b_es_acceso_texto: 'Portal 3B, 4º derecha. Llave bajo el felpudo.',
+    b_es_aloj_wifi_ssid: 'MarinaWiFi',
+    b_es_aloj_wifi_password: 'atico-marina-1',
+    b_es_normas_present: '1',
+    b_es_normas_0_text: 'No fiestas',
+    b_es_normas_1_text: 'Reciclaje obligatorio',
+    b_es_manual_present: '1',
+    b_es_manual_0_title: 'Lavavajillas',
+    b_es_manual_0_description: 'Pastillas en el cajón de abajo',
+    b_es_manual_0_media_url: 'https://youtu.be/demo-lava',
+    b_es_recomendaciones_present: '1',
+    b_es_recomendaciones_0_title: 'Chiringuito Paco',
+    b_es_recomendaciones_0_category: 'Restaurante',
+    b_es_recomendaciones_0_description: 'A 5 min andando'
+  });
+  assert.equal(saveRes.statusCode, 302);
+
+  const vendido = models.getTagById(target.id);
+  assert.equal(vendido.modo, 'alojamiento');
+  assert.equal(vendido.nombre, 'Ático Marina');
+
+  // 5. Bloques guardados: normas como lista, manual con enlace, recomendaciones con categoría
+  const rows = models.listBlocks(target.id);
+  const normas = JSON.parse(rows.find((r) => r.block_type === 'normas').content);
+  assert.deepEqual(normas.items.map((i) => i.text), ['No fiestas', 'Reciclaje obligatorio']);
+  const manual = JSON.parse(rows.find((r) => r.block_type === 'manual').content);
+  assert.equal(manual.items[0].title, 'Lavavajillas');
+  assert.equal(manual.items[0].media_url, 'https://youtu.be/demo-lava');
+  const recos = JSON.parse(rows.find((r) => r.block_type === 'recomendaciones').content);
+  assert.equal(recos.items[0].title, 'Chiringuito Paco');
+  assert.equal(recos.items[0].category, 'Restaurante');
+
+  // 6. La página pública del huésped muestra todo
+  const pub = await req(`/t/${vendido.slug}`);
+  assert.equal(pub.statusCode, 200);
+  assert.match(pub.body, /felpudo/);
+  assert.match(pub.body, /No fiestas/);
+  assert.match(pub.body, /Lavavajillas/);
+  assert.match(pub.body, /youtu\.be\/demo-lava/);
+  assert.match(pub.body, /Chiringuito Paco/);
+  assert.match(pub.body, /Restaurante/);
+
+  // Limpieza: devolver el tag a desactivado para otros tests
+  models.updateTag(target.id, { modo: 'desactivado' });
+  models.deleteBlocksByTag(target.id);
+});
+
+test('chip NFC: normalización de UID y lectura de modelo', () => {
+  // Los UIDs llegan del móvil con separadores; se normalizan a hex mayúsculas.
+  assert.equal(normalizeNfcUid('04:a3:b2:c1:5b:6a:80'), '04A3B2C15B6A80');
+  assert.equal(normalizeNfcUid(' 04 A3 B2 C1 5B 6A 80 '), '04A3B2C15B6A80');
+  assert.equal(normalizeNfcUid('04A3B2C15B6A80'), '04A3B2C15B6A80');
+  assert.equal(normalizeNfcUid(''), null); // vacío = desvincular
+  assert.equal(normalizeNfcUid('  '), null);
+  assert.equal(normalizeNfcUid('XYZ'), false); // basura
+  assert.equal(normalizeNfcUid('AB'), false); // demasiado corto (< 4 hex)
+  assert.ok(normalizeNfcUid('04A3')); // 4 hex: válido
+  assert.equal(normalizeNfcUid('04A3B2C15B6A80FF112233445566778899'), false); // demasiado largo
+});
+
+test('identificación del chip NFC: asociar, buscar en vivo, desvincular y unicidad', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+  const UID = '04A3B2C15B6A80';
+
+  // 1. La página existe y aparece en el menú
+  const page = await get('/admin/nfc');
+  assert.equal(page.statusCode, 200);
+  assert.match(page.body, /Identificar chip NFC/);
+  assert.match(page.body, /Leer chip NFC/);
+  const csrf = getCsrf(page.body);
+
+  // 2. Búsqueda en vivo: UID desconocido → no encontrado
+  const miss = await get('/admin/nfc/buscar.json?uid=04:AA:BB:CC:DD:EE:FF');
+  assert.equal(miss.statusCode, 200);
+  const missData = JSON.parse(miss.body);
+  assert.equal(missData.found, false);
+  assert.equal(missData.uid, '04AABBCCDDEEFF');
+
+  // 3. Crear una tarjeta de stock y asignarle el chip leído
+  const stock = models.createBulkTags({ cantidad: 1, prefijo: 'Chip', tipo: 'nfc' });
+  assert.equal(stock, 1);
+  const target = models.listTagsByModo('desactivado').find((t) => t.nombre.startsWith('Chip '));
+
+  const save = await post('/admin/nfc', { _csrf: csrf, uid: '04:a3:b2:c1:5b:6a:80', tag_id: String(target.id), modelo: 'ntag213' });
+  assert.equal(save.statusCode, 302);
+
+  const vinculado = models.getTagByNfcUid(UID);
+  assert.ok(vinculado, 'el UID normalizado queda guardado');
+  assert.equal(vinculado.id, target.id);
+  assert.equal(vinculado.nfcModelo, 'NTAG213');
+
+  // 4. La búsqueda en vivo ahora lo encuentra
+  const hit = await get('/admin/nfc/buscar.json?uid=04A3B2C15B6A80');
+  const hitData = JSON.parse(hit.body);
+  assert.equal(hitData.found, true);
+  assert.equal(hitData.nombre, target.nombre);
+
+  // 5. Unicidad: asignar el mismo chip a otra ficha lo reasigna
+  const otro = models.createBulkTags({ cantidad: 1, prefijo: 'Chip', tipo: 'nfc' });
+  assert.equal(otro, 1);
+  const otroTag = models.listTagsByModo('desactivado').find((t) => t.nombre.startsWith('Chip ') && t.id !== target.id);
+  const reassign = await post('/admin/nfc', { _csrf: csrf, uid: UID, tag_id: String(otroTag.id), modelo: '' });
+  assert.equal(reassign.statusCode, 302);
+  assert.equal(models.getTagByNfcUid(UID).id, otroTag.id);
+  assert.equal(models.getTagById(target.id).nfcUid, null);
+
+  // 6. Desvincular
+  const unlink = await post('/admin/nfc', { _csrf: csrf, uid: UID, accion: 'desvincular' });
+  assert.equal(unlink.statusCode, 302);
+  assert.equal(models.getTagByNfcUid(UID), null);
+
+  // 7. El UID también se puede guardar desde el formulario del tag (con ?uid=)
+  const edit = await get(`/admin/tags/${target.id}/editar?uid=04:11:22:33:44:55:66`);
+  assert.equal(edit.statusCode, 200);
+  const prefilled = models.getTagById(target.id);
+  assert.equal(prefilled.nfcUid, '04112233445566');
+
+  // Y el formulario admite el campo en el POST normal (y desvincula en blanco)
+  const editPage = await get(`/admin/tags/${target.id}/editar`);
+  const csrf2 = getCsrf(editPage.body);
+  const save2 = await post(`/admin/tags/${target.id}`, {
+    _csrf: csrf2,
+    nombre: prefilled.nombre,
+    tipo: 'nfc',
+    modo: 'desactivado',
+    estado: 'activo',
+    nfc_uid: '04112233445566',
+    nfc_modelo: 'NTAG213'
+  });
+  assert.equal(save2.statusCode, 302);
+  assert.equal(models.getTagById(target.id).nfcUid, '04112233445566');
+
+  const save3 = await post(`/admin/tags/${target.id}`, {
+    _csrf: csrf2,
+    nombre: prefilled.nombre,
+    tipo: 'nfc',
+    modo: 'desactivado',
+    estado: 'activo',
+    nfc_uid: '',
+    nfc_modelo: ''
+  });
+  assert.equal(save3.statusCode, 302);
+  assert.equal(models.getTagById(target.id).nfcUid, null);
+
+  // Limpieza de las tarjetas de prueba
+  models.deleteTag(target.id);
+  models.deleteTag(otroTag.id);
 });

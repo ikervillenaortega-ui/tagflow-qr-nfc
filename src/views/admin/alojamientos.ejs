@@ -13,6 +13,17 @@
   <% if (filters.q) { %><a class="link" href="/admin/alojamientos">Limpiar</a><% } %>
 </form>
 
+<% if (pendientesVenta > 0) { %>
+<div class="banner-pendientes">
+  <strong><%= pendientesVenta %></strong> <%= pendientesVenta === 1 ? 'tarjeta vendida espera configuración' : 'tarjetas vendidas esperan configuración' %> — conviértela en la guía del huésped de un alojamiento:
+  <ul class="pendientes-list">
+    <% for (const t of vendidos) { %>
+      <li><strong><%= t.nombre %></strong> <span class="muted">(/t/<%= t.slug %>)</span> — <a class="link" href="/admin/tags/<%= t.id %>/editar?modo=alojamiento">🏡 Configurar como alojamiento</a></li>
+    <% } %>
+  </ul>
+</div>
+<% } %>
+
 <% if (list.rows.length === 0) { %>
   <div class="empty">
     <p><%= filters.q ? 'Ninguna propiedad coincide con la búsqueda.' : 'Todavía no hay propiedades. Crea la primera y programa su tag NFC o QR.' %></p>

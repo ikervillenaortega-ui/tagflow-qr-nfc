@@ -177,28 +177,112 @@
   var tagForm = document.getElementById('tag-form');
   var alojField = tagForm ? tagForm.querySelector('.field-alojamiento') : null;
   if (alojField) {
+    // ---- Editor de filas (normas, manual, recomendaciones) ----
+    // Las filas visibles son inputs normales; los "seeds" ocultos que renderiza
+    // el servidor llevan el valor al POST. syncNames los renumera/crea al vuelo
+    // desde las filas visibles, y el marker _present indica si el bloque tiene
+    // contenido. Sin JS, los seeds del servidor se envían tal cual.
+    function initRowlist(list) {
+      var tpl = list.querySelector('[data-row-tpl]');
+      var rowsBox = list.querySelector('.rowlist-rows');
+      var marker = list.querySelector('input[type="hidden"][name="' + list.dataset.marker + '"]');
+      var host = list.parentNode; // .aloj-field: contiene los seeds del servidor
+
+      function syncNames() {
+        host.querySelectorAll('.seed-hidden').forEach(function (hid) { hid.remove(); });
+        var n = 0;
+        rowsBox.querySelectorAll('.rowlist-row').forEach(function (row) {
+          var hasAny = false;
+          row.querySelectorAll('[data-rf]').forEach(function (inp) {
+            if (String(inp.value).trim() === '') return;
+            hasAny = true;
+            var hid = document.createElement('input');
+            hid.type = 'hidden';
+            hid.className = 'seed-hidden';
+            hid.name = list.dataset.prefix + '_' + n + '_' + inp.dataset.rf;
+            hid.value = inp.value;
+            host.appendChild(hid);
+          });
+          if (hasAny) n++;
+        });
+        if (marker) marker.value = n > 0 ? '1' : '0';
+      }
+
+      function addRow(values) {
+        var node = tpl.content.cloneNode(true);
+        rowsBox.appendChild(node);
+        var row = rowsBox.querySelector('.rowlist-row:last-child');
+        if (values) {
+          Object.keys(values).forEach(function (k) {
+            var inp = row.querySelector('[data-rf="' + k + '"]');
+            if (inp) inp.value = values[k] || '';
+          });
+        }
+        row.querySelector('.rowlist-del').addEventListener('click', function () {
+          row.remove();
+          syncNames();
+        });
+        row.addEventListener('input', function () { syncNames(); });
+        syncNames();
+      }
+
+      list.querySelector('[data-row-add]').addEventListener('click', function () { addRow(); });
+
+      // Cargar las filas existentes desde los seeds del servidor.
+      var existing = [];
+      host.querySelectorAll('.seed-hidden').forEach(function (hid) {
+        var m = new RegExp('^' + list.dataset.prefix + '_(\\d+)_(title|text|description|media_url|category)$').exec(hid.name);
+        if (!m) return;
+        var idx = parseInt(m[1], 10);
+        existing[idx] = existing[idx] || {};
+        existing[idx][m[2]] = hid.value;
+      });
+      existing.forEach(function (v) { addRow(v || {}); });
+      if (!existing.length) addRow({}); // una fila vacía lista para escribir
+
+      return { syncNames: syncNames };
+    }
+
+    var rowlists = [];
+    alojField.querySelectorAll('[data-rowlist]').forEach(function (list) {
+      rowlists.push(initRowlist(list));
+    });
+
     var setLangState = function (lang) {
       var wrapEl = alojField.querySelector('.aloj-lang[data-lang="' + lang + '"]');
       if (!wrapEl) return;
       var has = false;
       wrapEl.querySelectorAll('[name^="b_' + lang + '_"]').forEach(function (input) {
-        if (input.type === 'hidden') return;
+        if (input.type === 'hidden') {
+          if (input.name.indexOf('_present') !== -1 && input.value === '1') has = true;
+          return;
+        }
+        if (input.name.indexOf('_password') !== -1) return; // nunca cuenta
         if (String(input.value).trim() !== '') has = true;
       });
       var presentInput = wrapEl.querySelector('input[name="b_' + lang + '_present"]');
       if (presentInput) presentInput.value = has ? '1' : '0';
       var stateEl = wrapEl.querySelector('.aloj-lang-state');
       if (stateEl) stateEl.textContent = has ? '· con contenido ✓' : '';
-      wrapEl.querySelectorAll('[data-block]').forEach(function (blk) {
-        var blockName = blk.dataset.block;
+      wrapEl.querySelectorAll('.aloj-section[data-block]').forEach(function (sec) {
+        var blockName = sec.dataset.block;
         var any = false;
-        blk.querySelectorAll('input, textarea').forEach(function (inp) {
+        sec.querySelectorAll('input:not([type="hidden"]), textarea').forEach(function (inp) {
           if (blockName === 'wifi' && /_password$/.test(inp.name || '')) return;
           if (String(inp.value).trim() !== '') any = true;
         });
-        blk.classList.toggle('shown', any);
+        // Bloques de listas: el marker _present del servidor dice si hay items.
+        if (!any) {
+          var mk = sec.querySelector('input[type="hidden"][name="b_' + lang + '_' + blockName + '_present"]');
+          if (mk && mk.value === '1') any = true;
+        }
+        sec.classList.toggle('shown', any);
       });
     };
+
+    function refreshAlojState() {
+      ['es', 'en'].forEach(setLangState);
+    }
 
     alojField.querySelectorAll('.aloj-lang-tab').forEach(function (tab) {
       tab.addEventListener('click', function () {
@@ -222,19 +306,15 @@
         var t = e.target;
         if (t.name && t.name.indexOf('b_' + lang + '_') === 0) setLangState(lang);
       });
-      setLangState(lang);
     });
 
-    // Pestaña inicial: el idioma principal si tiene contenido; si no, el que lo tenga.
-    (function () {
-      var esWrap = alojField.querySelector('.aloj-lang[data-lang="es"]');
-      var esHas = esWrap && esWrap.querySelector('.aloj-lang-state').textContent !== '';
-      var enWrap = alojField.querySelector('.aloj-lang[data-lang="en"]');
-      var enHas = enWrap && enWrap.querySelector('.aloj-lang-state').textContent !== '';
-      var open = esHas || !enHas ? 'es' : 'en';
-      var tab = alojField.querySelector('.aloj-lang-tab[data-lang-tab="' + open + '"]');
-      if (tab) tab.click();
-    })();
+    setLangState('es');
+    setLangState('en');
+
+    // Antes de enviar: re-sincronizar filas (por si algún navegador no disparó input).
+    tagForm.addEventListener('submit', function () {
+      rowlists.forEach(function (rl) { rl.syncNames(); });
+    });
   }
 
   // Restaurar copia de seguridad (subida del fichero .db en crudo)
@@ -415,4 +495,105 @@
     try { document.execCommand('copy'); } catch (e) { /* sin soporte */ }
     document.body.removeChild(ta);
   }
+
+  // ===== Lectura del chip NFC (Web NFC) =====
+  // Lee el UID del chip (p. ej. NTAG213). En la página «Identificar NFC"
+  // hace búsqueda en vivo y rellena el formulario de asignación; en el
+  // formulario de tag rellena el campo UID directamente.
+  (function initNfcReader() {
+    if (!('NDEFReader' in window)) return;
+    var ndef = null;
+    var readerBtn = document.getElementById('nfc-read-btn');
+    var inlineBtn = document.getElementById('nfc-read-inline');
+    var statusEl = document.getElementById('nfc-status');
+    var inlineStatus = document.getElementById('nfc-read-status');
+    var webBox = document.getElementById('nfc-web');
+    var noSupport = document.getElementById('nfc-nosupport');
+
+    if (webBox && noSupport) {
+      webBox.hidden = false;
+      noSupport.hidden = true;
+    }
+    if (inlineBtn) inlineBtn.hidden = false;
+
+    function setStatus(el, msg, isError) {
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.toggle('nfc-error', !!isError);
+    }
+
+    function uidFromSerial(serial) {
+      return String(serial || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    }
+
+    // NTAG213: UID de 7 bytes → 14 dígitos hex. El modelo se deduce del tamaño
+    // del UID (solo orientativo: los clones pueden variar).
+    function modelHint(uid) {
+      if (uid.length === 8) return 'MIFARE Classic / NTAG probable';
+      if (uid.length === 14) return 'NTAG213 (o compatible, UID de 7 bytes)';
+      if (uid.length === 16) return 'NTAG216 / UID de 8 bytes';
+      return 'Chip NTAG compatible';
+    }
+
+    function handleUid(uid) {
+      var idInput = document.getElementById('nfc-uid-input');
+      var uidDisplay = document.getElementById('nfc-uid-display');
+      var modelHintEl = document.getElementById('nfc-model-hint');
+      var resultBox = document.getElementById('nfc-result');
+      var formField = document.getElementById('nfc-uid-field');
+
+      if (formField) {
+        formField.value = uid;
+        setStatus(inlineStatus, 'Chip leído: ' + uid + ' ✓', false);
+      }
+      if (!idInput) return; // estamos en el formulario de tag: ya está
+
+      idInput.value = uid;
+      if (uidDisplay) uidDisplay.textContent = uid;
+      if (modelHintEl) modelHintEl.textContent = modelHint(uid);
+      if (resultBox) resultBox.hidden = false;
+      setStatus(statusEl, 'Chip leído correctamente.', false);
+
+      // Búsqueda en vivo: ¿ya pertenece a una ficha?
+      fetch('/admin/nfc/buscar.json?uid=' + encodeURIComponent(uid), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var known = document.getElementById('nfc-known');
+          if (!known) return;
+          if (data && data.found) {
+            known.innerHTML = 'Asignado a <a href="/admin/tags/' + data.tagId + '"><strong>' + data.nombre + '</strong></a> — puedes reasignarlo abajo.';
+          } else {
+            known.textContent = 'Chip nuevo: todavía sin asignar a ninguna ficha.';
+          }
+        })
+        .catch(function () { /* sin búsqueda en vivo */ });
+    }
+
+    async function readTag() {
+      try {
+        if (!ndef) ndef = new NDEFReader();
+        await ndef.scan();
+        setStatus(statusEl || inlineStatus, 'Lectura activa: acerca la tarjeta…', false);
+        ndef.onreading = function (event) {
+          var uid = uidFromSerial(event.serialNumber);
+          if (!uid) {
+            setStatus(statusEl || inlineStatus, 'No se pudo leer el UID. Prueba de acercar la tarjeta de nuevo.', true);
+            return;
+          }
+          handleUid(uid);
+        };
+        ndef.onreadingerror = function () {
+          setStatus(statusEl || inlineStatus, 'Error de lectura: mantén la tarjeta quieta sobre el lector.', true);
+        };
+      } catch (err) {
+        var msg = 'No se pudo activar el lector NFC';
+        if (err && err.name === 'NotAllowedError') msg = 'Permiso denegado: acepta el permiso NFC para leer la tarjeta.';
+        if (err && err.name === 'NotSupportedError') msg = 'Este dispositivo no soporta Web NFC.';
+        setStatus(statusEl || inlineStatus, msg + '.', true);
+      }
+    }
+
+    if (readerBtn) readerBtn.addEventListener('click', readTag);
+    if (inlineBtn) inlineBtn.addEventListener('click', readTag);
+  })();
 })();

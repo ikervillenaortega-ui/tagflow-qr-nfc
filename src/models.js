@@ -10,7 +10,7 @@ const SEGURIDADES = ['WPA', 'WEP', 'nopass'];
 
 const TAG_COLUMNS = `id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
   wifi_seguridad, contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio,
-  pres_foto, aloj_idioma, modo_despedida, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
+  pres_foto, aloj_idioma, modo_despedida, nfc_uid, nfc_modelo, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
 
 function nowIso() {
   return new Date().toISOString();
@@ -36,6 +36,8 @@ function rowToTag(row) {
     presFoto: row.pres_foto,
     alojIdioma: row.aloj_idioma || 'es',
     modoDespedida: Boolean(row.modo_despedida),
+    nfcUid: row.nfc_uid || null,
+    nfcModelo: row.nfc_modelo || null,
     escaneos: row.escaneos,
     ultimoEscaneo: row.ultimo_escaneo,
     estado: row.estado,
@@ -158,6 +160,14 @@ function createModels(db, config) {
       .map(rowToTag);
   }
 
+  // Todos los tags sin paginar (p. ej. el desplegable de asignación de chips).
+  function listAllTags() {
+    return db
+      .prepare(`SELECT ${TAG_COLUMNS} FROM tags ORDER BY nombre COLLATE NOCASE ASC`)
+      .all()
+      .map(rowToTag);
+  }
+
   function createTag(input) {
     const slug = input.slug && isValidSlug(input.slug) ? input.slug : generateSlug(8);
     const wifiPasswordEnc = input.wifi && input.wifi.password ? encryptText(input.wifi.password, key) : null;
@@ -166,8 +176,8 @@ function createModels(db, config) {
       `INSERT INTO tags
          (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
           contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
-          aloj_idioma, estado, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          aloj_idioma, nfc_uid, nfc_modelo, estado, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     try {
       const info = stmt.run(
@@ -186,6 +196,8 @@ function createModels(db, config) {
         input.presentacion ? input.presentacion.bio || null : null,
         input.presentacion ? input.presentacion.foto || null : null,
         input.alojIdioma || 'es',
+        input.nfcUid || null,
+        input.nfcModelo || null,
         input.estado,
         now,
         now
@@ -270,6 +282,14 @@ function createModels(db, config) {
     if (input.modoDespedida !== undefined) {
       sets.push('modo_despedida = @modo_despedida');
       params.modo_despedida = input.modoDespedida ? 1 : 0;
+    }
+    if (input.nfcUid !== undefined) {
+      sets.push('nfc_uid = @nfc_uid');
+      params.nfc_uid = input.nfcUid || null;
+    }
+    if (input.nfcModelo !== undefined) {
+      sets.push('nfc_modelo = @nfc_modelo');
+      params.nfc_modelo = input.nfcModelo || null;
     }
     if (input.clearWifi) {
       sets.push('wifi_ssid = NULL', 'wifi_password_enc = NULL', 'wifi_seguridad = NULL');
@@ -409,6 +429,18 @@ function createModels(db, config) {
     db.prepare('DELETE FROM tag_blocks WHERE tag_id = ?').run(tagId);
   }
 
+  // Localiza un tag por el UID hexadecimal de su chip NFC (p. ej. NTAG213).
+  // Devuelve null si no hay ninguno asociado todavía.
+  function getTagByNfcUid(uid) {
+    return rowToTag(db.prepare(`SELECT ${TAG_COLUMNS} FROM tags WHERE nfc_uid = ?`).get(uid));
+  }
+
+  // Localiza un tag por el UID hexadecimal de su chip NFC (p. ej. NTAG213).
+  // Devuelve null si no hay ninguno asociado todavía.
+  function getTagByNfcUid(uid) {
+    return rowToTag(db.prepare(`SELECT ${TAG_COLUMNS} FROM tags WHERE nfc_uid = ?`).get(uid));
+  }
+
   // Duplica un tag y, si tiene bloques de alojamiento, los copia también.
   // Devuelve el tag nuevo.
   function duplicateTag(id, nuevoNombre) {
@@ -426,10 +458,10 @@ function createModels(db, config) {
             .prepare(
               `INSERT INTO tags (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
                  contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
-                 aloj_idioma, modo_despedida, estado, fecha_creacion, fecha_actualizacion)
+                 aloj_idioma, modo_despedida, nfc_uid, nfc_modelo, estado, fecha_creacion, fecha_actualizacion)
                SELECT ?, ?, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
                  contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
-                 aloj_idioma, modo_despedida, 'activo', ?, ?
+                 aloj_idioma, modo_despedida, NULL, NULL, 'activo', ?, ?
                FROM tags WHERE id = ?`
             )
             .run(generateSlug(8), nuevoNombre, now, now, id);
@@ -474,10 +506,12 @@ function createModels(db, config) {
     createBulkTags,
     countTagsByModo,
     listTagsByModo,
+    listAllTags,
     updateTag,
     deleteTag,
     setEstado,
     recordScan,
+    getTagByNfcUid,
     scanTimestamps,
     scanReferrerCounts,
     updateScanLocation,
