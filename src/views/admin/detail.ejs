@@ -6,6 +6,13 @@
       <a class="btn btn-primary" href="/admin/tags/<%= tag.id %>/editar?modo=contacto">Configurar para la venta</a>
       <a class="btn" href="/admin/tags/<%= tag.id %>/editar?modo=presentacion">Crear presentación</a>
     <% } %>
+    <% if (tag.modo === 'alojamiento') { %>
+      <a class="btn" href="/t/<%= tag.slug %>" target="_blank" rel="noopener">👁 Ver página del huésped</a>
+      <form method="post" action="/admin/tags/<%= tag.id %>/duplicar" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn" title="Copiar la configuración completa a una propiedad nueva">📄 Duplicar propiedad</button>
+      </form>
+    <% } %>
     <a class="btn" href="/admin/tags/<%= tag.id %>/editar">Editar</a>
     <form method="post" action="/admin/tags/<%= tag.id %>/estado" class="inline-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -53,6 +60,35 @@
   </div>
 </section>
 
+<% if (tag.modo === 'alojamiento') { %>
+<section class="panel aloj-panel">
+  <h2>Guía del huésped</h2>
+  <p class="muted">Bloques de contenido que verá el huésped al tocar el tag NFC o escanear el QR. Los vacíos no se muestran. El WiFi se usa solo para la conexión automática: nunca aparece como texto en la página.</p>
+  <dl class="kv">
+    <dt>Idioma principal</dt>
+    <dd><%= tag.alojIdioma === 'en' ? 'English (en)' : 'Español (es)' %></dd>
+    <dt>Bloques con contenido</dt>
+    <dd>
+      <% const langs = {}; for (const b of alojBlocks) { langs[b.block_type] = langs[b.block_type] || []; langs[b.block_type].push(b.language); } %>
+      <% if (Object.keys(langs).length === 0) { %>
+        <span class="muted">Ninguno todavía — <a class="link" href="/admin/tags/<%= tag.id %>/editar?modo=alojamiento">edita el contenido</a>.</span>
+      <% } else { %>
+        <% for (const [type, ls] of Object.entries(langs)) { %>
+          <span class="badge badge-modo"><%= BLOCK_LABELS[type] || type %> · <%= ls.sort().join(' + ') %></span>
+        <% } %>
+      <% } %>
+    </dd>
+    <dt>Modo despedida</dt>
+    <dd>
+      <form method="post" action="/admin/tags/<%= tag.id %>/despedida" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-sm <%= tag.modoDespedida ? 'btn-danger' : '' %>"><%= tag.modoDespedida ? '✓ Activo — quitar' : 'Activar (prioriza la reseña)' %></button>
+      </form>
+    </dd>
+  </dl>
+</section>
+<% } %>
+
 <% if (tag.modo === 'presentacion') { %>
 <section class="panel pres-panel">
   <h2>Presentación personal</h2>
@@ -89,7 +125,7 @@
   <h2>Configuración actual</h2>
   <dl class="kv">
     <dt>Modo</dt>
-    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : (tag.modo === 'presentacion' ? 'Presentación' : 'Desactivado'))) %></span></dd>
+    <dd><span class="badge badge-modo badge-<%= tag.modo %>"><%= tag.modo === 'url' ? 'URL' : (tag.modo === 'wifi' ? 'WiFi' : (tag.modo === 'contacto' ? 'Contacto' : (tag.modo === 'presentacion' ? 'Presentación' : (tag.modo === 'alojamiento' ? 'Alojamiento' : 'Desactivado')))) %></span></dd>
     <% if (tag.modo === 'url') { %>
       <dt>Destino</dt>
       <dd><a href="<%= tag.urlDestino %>" target="_blank" rel="noopener"><%= tag.urlDestino %></a></dd>

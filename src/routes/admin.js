@@ -9,8 +9,89 @@ const { buildVCard } = require('../contact');
 const { qrPng, qrSvg } = require('../qr');
 const { isValidSlug } = require('../slugs');
 const { circularSvg } = require('../imageUtils');
+const { BLOCK_TYPES, LANGUAGES, LANGUAGE_NAMES, validateAlojamientoInput, BLOCK_LABELS } = require('../alojamiento');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Bloques de alojamiento de un tag agrupados por idioma y tipo (para las
+// pestañas de idioma del formulario de edición).
+function blocksByLangFor(models, tag) {
+  const out = {};
+  if (!tag) return out;
+  for (const row of models.listBlocks(tag.id)) {
+    let content = null;
+    try { content = JSON.parse(row.content); } catch { content = null; }
+    out[row.language] = out[row.language] || {};
+    out[row.language][row.block_type] = content;
+  }
+  return out;
+}
+
+// ---------- Modo Alojamiento: extracción y persistencia por idioma ----------
+
+// Los formularios traen los bloques por idioma con el prefijo b_{idioma}_
+// (b_es_acceso_texto, b_en_normas_texto…). Se convierten al cuerpo plano que
+// espera validateAlojamientoInput y se validan todos los idiomas marcados
+// como presentes (b_{idioma}_present = 1).
+function collectAlojamiento(body, tag, models, secret) {
+  const existingWifi = new Map();
+  if (tag) {
+    for (const row of models.listBlocks(tag.id)) {
+      if (row.block_type !== 'wifi') continue;
+      try { existingWifi.set(row.language, JSON.parse(row.content)); } catch { /* fila corrupta: se ignora */ }
+    }
+  }
+  const langs = LANGUAGES.filter((lang) => body[`b_${lang}_present`] === '1');
+  const errors = [];
+  const perLang = new Map();
+  for (const lang of langs) {
+    const sub = {
+      aloj_idioma: lang,
+      acceso_texto: body[`b_${lang}_acceso_texto`],
+      aloj_wifi_ssid: body[`b_${lang}_aloj_wifi_ssid`],
+      aloj_wifi_password: body[`b_${lang}_aloj_wifi_password`],
+      normas_texto: body[`b_${lang}_normas_texto`],
+      manual_texto: body[`b_${lang}_manual_texto`],
+      recomendaciones_texto: body[`b_${lang}_recomendaciones_texto`],
+      aloj_contacto_whatsapp: body[`b_${lang}_aloj_contacto_whatsapp`],
+      aloj_contacto_telefono: body[`b_${lang}_aloj_contacto_telefono`],
+      aloj_contacto_email: body[`b_${lang}_aloj_contacto_email`],
+      resena_url: body[`b_${lang}_resena_url`]
+    };
+    const r = validateAlojamientoInput(sub, { secret, existingWifi: existingWifi.get(lang) || null });
+    if (r.errors.length) errors.push(...r.errors.map((e) => `[${LANGUAGE_NAMES[lang] || lang}] ${e}`));
+    perLang.set(lang, r.blocks);
+  }
+  const alojIdioma = LANGUAGES.includes(body.aloj_idioma) ? body.aloj_idioma : (tag ? tag.alojIdioma : 'es');
+  return { errors, perLang, langs, alojIdioma };
+}
+
+// Guarda los bloques validados. Semántica «lo que ves es lo que guardas» por
+// idioma: si el campo del bloque llegó en el formulario (presente en body)
+// y quedó vacío, la fila de ese idioma se elimina; si trae contenido, se
+// crea/actualiza. Los idiomas no marcados como presentes no se tocan.
+function saveAlojamientoBlocks(models, tagId, langs, perLang, body) {
+  const present = (lang, key) => body[`b_${lang}_${key}`] !== undefined;
+  for (const lang of langs) {
+    const blocks = perLang.get(lang) || {};
+    const ensure = (type, presentFlag, content) => {
+      if (!presentFlag) return;
+      if (content) models.upsertBlock(tagId, { blockType: type, language: lang, content, position: 0, isVisible: 1 });
+      else models.deleteBlock(tagId, type, lang);
+    };
+    ensure('acceso', present(lang, 'acceso_texto'), blocks.acceso);
+    ensure('wifi', present(lang, 'aloj_wifi_ssid'), blocks.wifi);
+    ensure('normas', present(lang, 'normas_texto'), blocks.normas);
+    ensure('manual', present(lang, 'manual_texto'), blocks.manual);
+    ensure('recomendaciones', present(lang, 'recomendaciones_texto'), blocks.recomendaciones);
+    ensure(
+      'contacto',
+      present(lang, 'aloj_contacto_whatsapp') || present(lang, 'aloj_contacto_telefono') || present(lang, 'aloj_contacto_email'),
+      blocks.contacto
+    );
+    ensure('resena', present(lang, 'resena_url'), blocks.resena);
+  }
+}
 
 function parseId(value) {
   const n = parseInt(String(value), 10);
@@ -28,7 +109,7 @@ function validateTagInput(body, opts = {}) {
   const tipo = ['qr', 'nfc', 'ambos'].includes(body.tipo) ? body.tipo : '';
   if (!tipo) errors.push('Selecciona un tipo de soporte.');
 
-  const modo = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'].includes(body.modo) ? body.modo : '';
+  const modo = ['url', 'wifi', 'contacto', 'presentacion', 'alojamiento', 'desactivado'].includes(body.modo) ? body.modo : '';
   if (!modo) errors.push('Selecciona un modo de destino.');
 
   const estado = ['activo', 'pausado'].includes(body.estado) ? body.estado : 'activo';
@@ -124,6 +205,49 @@ function createAdminRouter({ db, models, config, auth }) {
 
   router.use(auth.csrfProtect);
   router.use(auth.requireAuth);
+
+  // Alojamientos: listado específico de propiedades turísticas (gestoras con
+  // varias propiedades) con buscador y estadísticas por tag.
+  router.get('/alojamientos', (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const list = models.listTags({ q, modo: 'alojamiento', page: req.query.page });
+    res.render('admin/alojamientos', {
+      title: 'Alojamientos',
+      active: 'alojamientos',
+      list,
+      filters: { q }
+    });
+  });
+
+  // Duplicar una propiedad (configuración idéntica a una nueva, para gestoras
+  // con pisos similares).
+  router.post('/tags/:id/duplicar', (req, res) => {
+    const id = parseId(req.params.id);
+    const tag = models.getTagById(id);
+    if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
+    const nuevoNombre = String(req.body.nombre || '').trim();
+    const nombre = nuevoNombre || `${tag.nombre} (copia)`;
+    const copia = models.duplicateTag(id, nombre);
+    if (!copia) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
+    req.session.flash = { type: 'success', msg: `Propiedad duplicada como «${copia.nombre}». Ajusta su contenido y comparte su nueva URL.` };
+    res.redirect(`/admin/tags/${copia.id}`);
+  });
+
+  // Modo despedida: al final de la estancia, prioriza el bloque de reseña en
+  // la página del huésped (manual: el anfitrión pulsa cuando quiera).
+  router.post('/tags/:id/despedida', (req, res) => {
+    const id = parseId(req.params.id);
+    const tag = models.getTagById(id);
+    if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
+    models.updateTag(id, { modoDespedida: !tag.modoDespedida });
+    req.session.flash = {
+      type: 'success',
+      msg: !tag.modoDespedida
+        ? 'Modo despedida activado: la página del huésped prioriza el enlace de reseña.'
+        : 'Modo despedida desactivado: la página vuelve a la guía completa.'
+    };
+    res.redirect(`/admin/tags/${id}`);
+  });
 
   // Listado con búsqueda y filtros
   router.get(['/', '/tags'], (req, res) => {
@@ -262,19 +386,33 @@ function createAdminRouter({ db, models, config, auth }) {
 
   // Crear
   router.get('/tags/nuevo', (req, res) => {
+    const preselectModo = ['url', 'wifi', 'contacto', 'presentacion', 'alojamiento', 'desactivado'].includes(req.query.modo)
+      ? req.query.modo
+      : null;
     res.render('admin/form', {
       title: 'Nuevo Tag',
       active: 'new',
       tag: null,
       errors: [],
       values: {},
-      preselectModo: null,
-      slugPreview: 'tu-slug'
+      preselectModo,
+      slugPreview: 'tu-slug',
+      blocksByLang: {}
     });
   });
 
   router.post('/tags', (req, res) => {
     const { errors, data } = validateTagInput(req.body);
+    let perLang = null;
+    let langs = [];
+    let alojIdioma = null;
+    if (data.modo === 'alojamiento' && errors.length === 0) {
+      const col = collectAlojamiento(req.body, null, models, config.wifiSecret);
+      errors.push(...col.errors);
+      perLang = col.perLang;
+      langs = col.langs;
+      alojIdioma = col.alojIdioma;
+    }
     if (errors.length) {
       return res.status(400).render('admin/form', {
         title: 'Nuevo Tag',
@@ -283,7 +421,8 @@ function createAdminRouter({ db, models, config, auth }) {
         errors,
         values: req.body || {},
         preselectModo: null,
-        slugPreview: 'tu-slug'
+        slugPreview: 'tu-slug',
+        blocksByLang: {}
       });
     }
     let tag;
@@ -298,10 +437,15 @@ function createAdminRouter({ db, models, config, auth }) {
           errors: ['Ese slug ya está en uso. Elige otro o déjalo vacío para generar uno automático.'],
           values: req.body || {},
           preselectModo: null,
-          slugPreview: 'tu-slug'
+          slugPreview: 'tu-slug',
+          blocksByLang: {}
         });
       }
       throw err;
+    }
+    if (data.modo === 'alojamiento') {
+      saveAlojamientoBlocks(models, tag.id, langs, perLang, req.body);
+      models.updateTag(tag.id, { alojIdioma });
     }
     req.session.flash = { type: 'success', msg: `Tag «${tag.nombre}» creado correctamente.` };
     res.redirect(`/admin/tags/${tag.id}`);
@@ -345,6 +489,8 @@ function createAdminRouter({ db, models, config, auth }) {
       wifiPayload,
       contactoPayload,
       scans,
+      alojBlocks: models.listBlocks(tag.id),
+      BLOCK_LABELS,
       series: buildScanSeries(models.scanTimestamps(tag.id)),
       origen: models.scanReferrerCounts(tag.id)
     });
@@ -362,13 +508,14 @@ function createAdminRouter({ db, models, config, auth }) {
     });
   });
 
-  // Editar (con ?modo=contacto se preselecciona ese modo: flujo «configurar al vender»)
+  // Editar (con ?modo=... se preselecciona ese modo: flujo «configurar al vender»)
   router.get('/tags/:id/editar', (req, res) => {
     const tag = models.getTagById(parseId(req.params.id));
     if (!tag) return res.status(404).render('admin/error', { status: 404, message: 'Tag no encontrado.' });
-    const preselectModo = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'].includes(req.query.modo)
+    const preselectModo = ['url', 'wifi', 'contacto', 'presentacion', 'alojamiento', 'desactivado'].includes(req.query.modo)
       ? req.query.modo
       : null;
+    // Bloques de alojamiento agrupados por idioma (para las pestañas del formulario).
     res.render('admin/form', {
       title: 'Editar Tag',
       active: 'tags',
@@ -376,7 +523,8 @@ function createAdminRouter({ db, models, config, auth }) {
       errors: [],
       values: null,
       preselectModo,
-      slugPreview: tag.slug
+      slugPreview: tag.slug,
+      blocksByLang: blocksByLangFor(models, tag)
     });
   });
 
@@ -387,6 +535,16 @@ function createAdminRouter({ db, models, config, auth }) {
 
     // Una contraseña en blanco solo es válida si el tag ya tenía una guardada.
     const { errors, data } = validateTagInput(req.body, { keepPassword: Boolean(tag.wifiPasswordEnc) });
+    let perLang = null;
+    let langs = [];
+    let alojIdioma = null;
+    if (data.modo === 'alojamiento' && errors.length === 0) {
+      const col = collectAlojamiento(req.body, tag, models, config.wifiSecret);
+      errors.push(...col.errors);
+      perLang = col.perLang;
+      langs = col.langs;
+      alojIdioma = col.alojIdioma;
+    }
     if (errors.length) {
       return res.status(400).render('admin/form', {
         title: 'Editar Tag',
@@ -395,7 +553,8 @@ function createAdminRouter({ db, models, config, auth }) {
         errors,
         values: req.body || {},
         preselectModo: null,
-        slugPreview: tag.slug
+        slugPreview: tag.slug,
+        blocksByLang: blocksByLangFor(tag)
       });
     }
 
@@ -414,6 +573,12 @@ function createAdminRouter({ db, models, config, auth }) {
       presentacion: buildPresentacionUpdate(data, tag),
       clearPresentacion: data.modo !== 'presentacion'
     });
+    if (data.modo === 'alojamiento') {
+      saveAlojamientoBlocks(models, id, langs, perLang, req.body);
+      models.updateTag(id, { alojIdioma });
+    } else {
+      models.deleteBlocksByTag(id);
+    }
     req.session.flash = { type: 'success', msg: 'Tag actualizado correctamente.' };
     res.redirect(`/admin/tags/${id}`);
   });

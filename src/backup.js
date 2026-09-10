@@ -16,7 +16,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\u0000');
-const RESTORE_TABLES = ['scans', 'tags', 'meta'];
+const RESTORE_TABLES = ['scans', 'tag_blocks', 'tags', 'meta'];
 
 function tableColumns(database, table) {
   return database.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);

@@ -60,6 +60,15 @@ function clientIp(req) {
   return (req.ip || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
 }
 
+// Escape para interpolación segura en atributos HTML desde EJS.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // Genera las series de escaneos por periodo (día/semana/mes/año) a partir de
 // marcas de tiempo ISO (UTC). Devuelve buckets de longitud fija terminados en
 // hoy: 30 días, 12 semanas, 12 meses y 5 años. Los huecos quedan a 0 para que
@@ -145,20 +154,11 @@ function fmtWeekLabel(t) {
   return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+const MONTH_NAMES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
 function fmtMonthLabel(t) {
   const d = new Date(t);
   return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
-const MONTH_NAMES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
-// Escape HTML mínimo para inyectar datos en atributos data-* de las vistas.
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // Texto legible de la ubicación de un escaneo: «Ciudad, Región, País».
@@ -173,4 +173,4 @@ function mapsUrl(lat, lon) {
   return `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
 }
 
-module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, clientIp, fmtLocation, mapsUrl, buildScanSeries, escapeHtml };
+module.exports = { fmtDate, detectOS, osLabel, publicBaseUrl, tagPublicUrl, isHttpUrl, hashIp, clientIp, escapeHtml, buildScanSeries, fmtLocation, mapsUrl };

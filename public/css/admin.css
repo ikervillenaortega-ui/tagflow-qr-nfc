@@ -246,6 +246,42 @@ textarea {
 .pres-name { font-size: 17px; }
 .pres-bio-preview { margin: 6px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.6; white-space: pre-line; }
 .badge-presentacion { background: #ede9fe; color: #6d28d9; }
+.badge-alojamiento { background: #ccfbf1; color: #0f766e; }
+
+/* ===== Alojamientos: listado de propiedades ===== */
+.aloj-list { display: flex; flex-direction: column; gap: 12px; }
+.aloj-card {
+  display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+}
+.aloj-card-main { min-width: 240px; flex: 1; }
+.aloj-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.aloj-stats { margin-top: 8px; font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+.aloj-card-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ===== Formulario de alojamiento: idiomas y bloques ===== */
+.field-alojamiento .aloj-lang { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; background: var(--bg); }
+.aloj-lang-head { display: flex; align-items: center; gap: 10px; }
+.aloj-lang-tab {
+  border: 1.5px solid var(--border); background: var(--surface); border-radius: 999px;
+  padding: 7px 16px; font-weight: 700; font-size: 13.5px; cursor: pointer; color: var(--ink);
+}
+.aloj-lang-tab.active { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+.aloj-lang-state { font-size: 12.5px; color: var(--ok); font-weight: 600; }
+.aloj-lang-body { margin-top: 12px; }
+.aloj-block-title { margin: 18px 0 6px; font-size: 14px; }
+.aloj-block-title:first-child { margin-top: 0; }
+.aloj-field { display: block; }
+.aloj-field textarea, .aloj-field input[type="text"], .aloj-field input[type="url"] { width: 100%; }
+.aloj-field small, .aloj-field .aloj-field-label { display: block; margin-top: 4px; }
+.aloj-field .aloj-field-label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-top: 10px; }
+html.js .field-alojamiento .aloj-field:not(.shown) { display: none; }
+html.js .field-alojamiento .form-grid[data-block]:not(.shown) { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  .badge-alojamiento { background: #134e4a; color: #5eead4; }
+  .aloj-lang-tab.active { background: #1e3a8a33; }
+}
 
 /* ===== Copia de seguridad ===== */
 .backup-restore { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }

@@ -4,13 +4,13 @@ const { encryptText, decryptText } = require('./crypto');
 const { hashIp } = require('./helpers');
 
 const TIPOS = ['qr', 'nfc', 'ambos'];
-const MODOS = ['url', 'wifi', 'contacto', 'presentacion', 'desactivado'];
+const MODOS = ['url', 'wifi', 'contacto', 'presentacion', 'alojamiento', 'desactivado'];
 const ESTADOS = ['activo', 'pausado'];
 const SEGURIDADES = ['WPA', 'WEP', 'nopass'];
 
 const TAG_COLUMNS = `id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
   wifi_seguridad, contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio,
-  pres_foto, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
+  pres_foto, aloj_idioma, modo_despedida, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion`;
 
 function nowIso() {
   return new Date().toISOString();
@@ -34,6 +34,8 @@ function rowToTag(row) {
     presCargo: row.pres_cargo,
     presBio: row.pres_bio,
     presFoto: row.pres_foto,
+    alojIdioma: row.aloj_idioma || 'es',
+    modoDespedida: Boolean(row.modo_despedida),
     escaneos: row.escaneos,
     ultimoEscaneo: row.ultimo_escaneo,
     estado: row.estado,
@@ -164,8 +166,8 @@ function createModels(db, config) {
       `INSERT INTO tags
          (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
           contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
-          estado, fecha_creacion, fecha_actualizacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          aloj_idioma, estado, fecha_creacion, fecha_actualizacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     try {
       const info = stmt.run(
@@ -183,6 +185,7 @@ function createModels(db, config) {
         input.presentacion ? input.presentacion.cargo || null : null,
         input.presentacion ? input.presentacion.bio || null : null,
         input.presentacion ? input.presentacion.foto || null : null,
+        input.alojIdioma || 'es',
         input.estado,
         now,
         now
@@ -259,6 +262,14 @@ function createModels(db, config) {
       } else if (!p.keepFoto) {
         sets.push('pres_foto = NULL');
       }
+    }
+    if (input.alojIdioma !== undefined) {
+      sets.push('aloj_idioma = @aloj_idioma');
+      params.aloj_idioma = input.alojIdioma || 'es';
+    }
+    if (input.modoDespedida !== undefined) {
+      sets.push('modo_despedida = @modo_despedida');
+      params.modo_despedida = input.modoDespedida ? 1 : 0;
     }
     if (input.clearWifi) {
       sets.push('wifi_ssid = NULL', 'wifi_password_enc = NULL', 'wifi_seguridad = NULL');
@@ -361,6 +372,85 @@ function createModels(db, config) {
     return { directo, web, sites };
   }
 
+  // ---------- Bloques de alojamiento (contenido del huésped) ----------
+
+  // Filas de tag_blocks de un tag (todos los bloques e idiomas).
+  function listBlocks(tagId) {
+    return db
+      .prepare('SELECT id, tag_id, block_type, language, content, position, is_visible, updated_at FROM tag_blocks WHERE tag_id = ? ORDER BY block_type, language')
+      .all(tagId);
+  }
+
+  // Upsert de un bloque (tag + tipo + idioma es único). Devuelve la fila.
+  function upsertBlock(tagId, { blockType, language, content, position = 0, isVisible = 1 }) {
+    const now = nowIso();
+    db.prepare(
+      `INSERT INTO tag_blocks (tag_id, block_type, language, content, position, is_visible, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(tag_id, block_type, language)
+       DO UPDATE SET content = excluded.content, position = excluded.position,
+         is_visible = excluded.is_visible, updated_at = excluded.updated_at`
+    ).run(tagId, blockType, language, JSON.stringify(content), position, isVisible ? 1 : 0, now);
+    return db
+      .prepare('SELECT id, tag_id, block_type, language, content, position, is_visible, updated_at FROM tag_blocks WHERE tag_id = ? AND block_type = ? AND language = ?')
+      .get(tagId, blockType, language);
+  }
+
+  function deleteBlock(tagId, blockType, language) {
+    db.prepare('DELETE FROM tag_blocks WHERE tag_id = ? AND block_type = ? AND language = ?').run(tagId, blockType, language);
+  }
+
+  // Borra todos los bloques de un idioma (p. ej. al vaciar una pestaña).
+  function deleteBlocksByLanguage(tagId, language) {
+    db.prepare('DELETE FROM tag_blocks WHERE tag_id = ? AND language = ?').run(tagId, language);
+  }
+
+  function deleteBlocksByTag(tagId) {
+    db.prepare('DELETE FROM tag_blocks WHERE tag_id = ?').run(tagId);
+  }
+
+  // Duplica un tag y, si tiene bloques de alojamiento, los copia también.
+  // Devuelve el tag nuevo.
+  function duplicateTag(id, nuevoNombre) {
+    const src = getTagById(id);
+    if (!src) return null;
+    const now = nowIso();
+    let created = null;
+    const run = db.transaction(() => {
+      // El duplicado es una propiedad distinta: slug nuevo aleatorio (colisiones
+      // improbables; se regenera si ocurren) y estado «activo».
+      let info = null;
+      for (;;) {
+        try {
+          info = db
+            .prepare(
+              `INSERT INTO tags (slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
+                 contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
+                 aloj_idioma, modo_despedida, estado, fecha_creacion, fecha_actualizacion)
+               SELECT ?, ?, tipo, modo, url_destino, wifi_ssid, wifi_password_enc, wifi_seguridad,
+                 contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio, pres_foto,
+                 aloj_idioma, modo_despedida, 'activo', ?, ?
+               FROM tags WHERE id = ?`
+            )
+            .run(generateSlug(8), nuevoNombre, now, now, id);
+          break;
+        } catch (err) {
+          if (!String(err.message).includes('UNIQUE')) throw err;
+        }
+      }
+      created = getTagById(info.lastInsertRowid);
+      // Bloques de alojamiento: se copian tal cual (la contraseña WiFi copiada
+      // sigue cifrada con la misma clave).
+      db.prepare(
+        `INSERT INTO tag_blocks (tag_id, block_type, language, content, position, is_visible, updated_at)
+         SELECT ?, block_type, language, content, position, is_visible, updated_at
+         FROM tag_blocks WHERE tag_id = ?`
+      ).run(created.id, id);
+    });
+    run();
+    return created;
+  }
+
   function findUserByUsername(username) {
     return db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username);
   }
@@ -392,6 +482,12 @@ function createModels(db, config) {
     scanReferrerCounts,
     updateScanLocation,
     recentScans,
+    listBlocks,
+    upsertBlock,
+    deleteBlock,
+    deleteBlocksByLanguage,
+    deleteBlocksByTag,
+    duplicateTag,
     findUserByUsername,
     createUser,
     updateUserPassword

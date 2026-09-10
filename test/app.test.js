@@ -831,3 +831,160 @@ test('flujo de venta con Presentación: stock → configurar → tarjeta del com
   // Limpieza: devolver el tag a desactivado para otros tests
   models.updateTag(target.id, { modo: 'desactivado' });
 });
+
+test('módulo Alojamiento: bloques multi-idioma, WiFi cifrado, despedida y duplicado', async () => {
+  const { cookie } = await loginAs('admin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Crear propiedad en modo Alojamiento con contenido en español e inglés
+  const formPage = await get('/admin/tags/nuevo?modo=alojamiento');
+  assert.equal(formPage.statusCode, 200);
+  assert.match(formPage.body, /Alojamiento turístico/);
+  const csrf = getCsrf(formPage.body);
+  const createRes = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'Apartamento Centro 2B',
+    tipo: 'nfc',
+    modo: 'alojamiento',
+    estado: 'activo',
+    aloj_idioma: 'es',
+    // Español
+    b_es_present: '1',
+    b_es_acceso_texto: 'Código puerta 4521#. Llave en el cajón del recibidor.',
+    b_es_aloj_wifi_ssid: 'Casa2B',
+    b_es_aloj_wifi_password: 'wifi-seguro-99',
+    b_es_normas_texto: 'Silencio de 23:00 a 9:00\nNo fumar',
+    b_es_manual_texto: 'Aire acondicionado | Mando junto a la puerta',
+    b_es_recomendaciones_texto: 'La Bodega | Restaurante | Tapeo a 2 min',
+    b_es_aloj_contacto_whatsapp: '+34600123456',
+    b_es_resena_url: 'https://g.page/r/resena-es',
+    // Inglés (solo acceso y reseña traducidos)
+    b_en_present: '1',
+    b_en_acceso_texto: 'Door code 4521#. Key in the hall drawer.',
+    b_en_resena_url: 'https://g.page/r/review-en'
+  });
+  assert.equal(createRes.statusCode, 302);
+  const id = Number(createRes.headers.location.split('/').pop());
+  const tag = models.getTagById(id);
+  assert.equal(tag.modo, 'alojamiento');
+  assert.equal(tag.alojIdioma, 'es');
+
+  // 2. Los bloques quedaron guardados: WiFi cifrado (nunca en claro en BD)
+  const blockRows = models.listBlocks(id);
+  assert.ok(blockRows.length >= 7, `bloques guardados: ${blockRows.length}`);
+  const wifiRow = blockRows.find((r) => r.block_type === 'wifi' && r.language === 'es');
+  assert.ok(wifiRow);
+  const wifiContent = JSON.parse(wifiRow.content);
+  assert.equal(wifiContent.ssid, 'Casa2B');
+  assert.ok(!wifiRow.content.includes('wifi-seguro-99'), 'la contraseña no está en claro en la base de datos');
+  assert.equal(models.decryptWifiPassword({ wifiPasswordEnc: wifiContent.password_enc }), 'wifi-seguro-99');
+
+  // 3. Página pública (huésped español): todos los bloques en orden
+  const pubEs = await req(`/t/${tag.slug}`);
+  assert.equal(pubEs.statusCode, 200);
+  assert.match(pubEs.body, /Apartamento Centro 2B/);
+  assert.match(pubEs.body, /4521#/);
+  assert.match(pubEs.body, /Silencio de 23:00 a 9:00/);
+  assert.match(pubEs.body, /La Bodega/);
+  assert.match(pubEs.body, /https:\/\/wa\.me\/34600123456/);
+  assert.match(pubEs.body, /g\.page\/r\/resena-es/);
+  assert.match(pubEs.body, /data-wifi-connect/);
+  // La contraseña viaja al huésped en el atributo data-wifi (necesaria para
+  // conectar) pero NUNCA como texto visible ni en el SSID mostrado.
+  assert.match(pubEs.body, /data-wifi='/);
+  assert.ok(!pubEs.body.includes('>wifi-seguro-99<'), 'la contraseña no se muestra como texto de página');
+  assert.ok(!pubEs.body.includes('Casa2Bwifi'), 'el SSID no va pegado a la contraseña');
+
+  // 4. Huésped inglés: su acceso y reseña, el resto en español (fallback)
+  const pubEn = await req(`/t/${tag.slug}`, { headers: { 'accept-language': 'en-GB,en;q=0.9' } });
+  assert.equal(pubEn.statusCode, 200);
+  assert.match(pubEn.body, /lang="en"/);
+  assert.match(pubEn.body, /Door code 4521#/);
+  assert.match(pubEn.body, /g\.page\/r\/review-en/);
+  assert.match(pubEn.body, /Silencio de 23:00 a 9:00/, 'normas sin traducir salen en el idioma principal');
+
+  // 5. La contraseña del WiFi del bloque no se loguea en el HTML del panel
+  const detail = await get(`/admin/tags/${id}`);
+  assert.equal(detail.statusCode, 200);
+  assert.match(detail.body, /Guía del huésped/);
+  assert.ok(!detail.body.includes('wifi-seguro-99'), 'el panel nunca muestra la contraseña de la guía');
+
+  // 6. Editar manteniendo la contraseña (campo en blanco) y añadiendo EN wifi
+  const editPage = await get(`/admin/tags/${id}/editar?modo=alojamiento`);
+  assert.equal(editPage.statusCode, 200);
+  const csrf2 = getCsrf(editPage.body);
+  const editRes = await post(`/admin/tags/${id}`, {
+    _csrf: csrf2,
+    nombre: 'Apartamento Centro 2B',
+    tipo: 'nfc',
+    modo: 'alojamiento',
+    estado: 'activo',
+    aloj_idioma: 'es',
+    b_es_present: '1',
+    b_es_aloj_wifi_ssid: 'Casa2B',
+    b_es_aloj_wifi_password: '',
+    b_en_present: '1',
+    b_en_aloj_wifi_ssid: 'Casa2B',
+    b_en_aloj_wifi_password: 'english-pw-777'
+  });
+  assert.equal(editRes.statusCode, 302);
+  const wifiEs2 = models.listBlocks(id).find((r) => r.block_type === 'wifi' && r.language === 'es');
+  const wifiEn2 = models.listBlocks(id).find((r) => r.block_type === 'wifi' && r.language === 'en');
+  assert.equal(models.decryptWifiPassword({ wifiPasswordEnc: JSON.parse(wifiEs2.content).password_enc }), 'wifi-seguro-99', 'al dejar la contraseña en blanco se conserva');
+  assert.equal(models.decryptWifiPassword({ wifiPasswordEnc: JSON.parse(wifiEn2.content).password_enc }), 'english-pw-777');
+
+  // 7. Modo despedida: prioriza la reseña al principio de la página
+  const desp = await post(`/admin/tags/${id}/despedida`, { _csrf: csrf2 });
+  assert.equal(desp.statusCode, 302);
+  assert.equal(models.getTagById(id).modoDespedida, true);
+  const pubDesp = await req(`/t/${tag.slug}`);
+  const posAcceso = pubDesp.body.indexOf('4521#');
+  const posResena = pubDesp.body.indexOf('g.page/r/resena-es');
+  assert.ok(posResena > 0);
+  assert.ok(posResena < posAcceso, 'en despedida la reseña aparece antes que el resto de bloques');
+  // Quitar despedida restaura el orden normal
+  await post(`/admin/tags/${id}/despedida`, { _csrf: csrf2 });
+  assert.equal(models.getTagById(id).modoDespedida, false);
+
+  // 8. Duplicar la propiedad: copia nombre nuevo + bloques completos
+  const dupPage = await get('/admin/tags');
+  const csrfDup = getCsrf(dupPage.body);
+  const dupRes = await post(`/admin/tags/${id}/duplicar`, { _csrf: csrfDup, nombre: 'Apartamento Centro 3A' });
+  assert.equal(dupRes.statusCode, 302);
+  const dupId = Number(dupRes.headers.location.split('/').pop());
+  assert.notEqual(dupId, id);
+  const dup = models.getTagById(dupId);
+  assert.equal(dup.nombre, 'Apartamento Centro 3A');
+  assert.equal(dup.modo, 'alojamiento');
+  const dupWifi = models.listBlocks(dupId).find((r) => r.block_type === 'wifi' && r.language === 'es');
+  assert.equal(JSON.parse(dupWifi.content).ssid, 'Casa2B', 'los bloques se copian con la propiedad');
+
+  // 9. Validación: WiFi sin contraseña → 400; URL de reseña inválida → 400
+  const badWifi = await post('/admin/tags', {
+    _csrf: csrf, nombre: 'Sin pw', tipo: 'qr', modo: 'alojamiento', estado: 'activo',
+    b_es_present: '1', b_es_aloj_wifi_ssid: 'RedSinClave', b_es_aloj_wifi_password: ''
+  });
+  assert.equal(badWifi.statusCode, 400);
+  assert.match(badWifi.body, /contraseña/i);
+
+  const badUrl = await post('/admin/tags', {
+    _csrf: csrf, nombre: 'URL mala', tipo: 'qr', modo: 'alojamiento', estado: 'activo',
+    b_es_present: '1', b_es_resena_url: 'javascript:alert(1)'
+  });
+  assert.equal(badUrl.statusCode, 400);
+
+  // 10. Cambiar a otro modo limpia los bloques (no quedan restos)
+  await post(`/admin/tags/${dupId}`, {
+    _csrf: csrf2, nombre: 'Apartamento Centro 3A', tipo: 'nfc', modo: 'desactivado', estado: 'activo'
+  });
+  assert.equal(models.listBlocks(dupId).length, 0);
+
+  // 11. Eliminar la propiedad elimina también sus bloques
+  await post(`/admin/tags/${id}/eliminar`, { _csrf: csrf2 });
+  assert.equal(models.getTagById(id), null);
+  assert.equal(models.listBlocks(id).length, 0);
+
+  // Limpieza
+  models.deleteTag(dupId);
+});

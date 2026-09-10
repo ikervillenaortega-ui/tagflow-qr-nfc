@@ -165,6 +165,67 @@ const MIGRATIONS = [
       DROP TABLE tags;
       ALTER TABLE tags_new RENAME TO tags;
     `
+  },
+  {
+    // Módulo de Alojamientos Turísticos: un tag en modo 'alojamiento' muestra al
+    // huésped una guía editable por bloques (acceso, WiFi, normas, manual,
+    // recomendaciones, contacto, reseña). El contenido vive en tag_blocks
+    // (una fila por bloque, idioma y tag) como JSON libre; la contraseña WiFi
+    // del bloque se guarda cifrada. 'modo_despedida' prepara el cambio a
+    // «priorizar reseña» al final de la estancia. Como SQLite no permite
+    // modificar un CHECK con ALTER, se reconstruye la tabla tags.
+    version: 8,
+    sql: `
+      CREATE TABLE tags_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'qr' CHECK (tipo IN ('qr','nfc','ambos')),
+        modo TEXT NOT NULL DEFAULT 'desactivado' CHECK (modo IN ('url','wifi','contacto','presentacion','alojamiento','desactivado')),
+        url_destino TEXT,
+        wifi_ssid TEXT,
+        wifi_password_enc TEXT,
+        wifi_seguridad TEXT CHECK (wifi_seguridad IN ('WPA','WEP','nopass')),
+        contacto_telefono TEXT,
+        contacto_email TEXT,
+        pres_persona_nombre TEXT,
+        pres_cargo TEXT,
+        pres_bio TEXT,
+        pres_foto TEXT,
+        aloj_idioma TEXT NOT NULL DEFAULT 'es',
+        modo_despedida INTEGER NOT NULL DEFAULT 0,
+        escaneos INTEGER NOT NULL DEFAULT 0,
+        ultimo_escaneo TEXT,
+        estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','pausado')),
+        fecha_creacion TEXT NOT NULL,
+        fecha_actualizacion TEXT NOT NULL
+      );
+
+      INSERT INTO tags_new (id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+        wifi_seguridad, contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio,
+        pres_foto, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion)
+        SELECT id, slug, nombre, tipo, modo, url_destino, wifi_ssid, wifi_password_enc,
+          wifi_seguridad, contacto_telefono, contacto_email, pres_persona_nombre, pres_cargo, pres_bio,
+          pres_foto, escaneos, ultimo_escaneo, estado, fecha_creacion, fecha_actualizacion
+        FROM tags;
+
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+
+      CREATE TABLE IF NOT EXISTS tag_blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        block_type TEXT NOT NULL CHECK (block_type IN ('acceso','wifi','normas','manual','recomendaciones','contacto','resena')),
+        language TEXT NOT NULL DEFAULT 'es',
+        content TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        is_visible INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT,
+        UNIQUE (tag_id, block_type, language)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tag_blocks_tag ON tag_blocks(tag_id);
+    `
   }
 ];
 

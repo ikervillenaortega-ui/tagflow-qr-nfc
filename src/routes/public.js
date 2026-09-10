@@ -4,6 +4,7 @@ const { detectOS, isHttpUrl, clientIp } = require('../helpers');
 const { ipToLocation } = require('../geo');
 const { buildAndroidWifiCredential } = require('../wifi');
 const { buildVCard } = require('../contact');
+const { buildGuestView } = require('../alojamiento');
 
 function createPublicRouter({ db, models, config }) {
   const router = express.Router();
@@ -71,6 +72,22 @@ function createPublicRouter({ db, models, config }) {
         nombre: tag.nombre,
         wifi,
         androidCred: buildAndroidWifiCredential(wifi),
+        os: detectOS(req.get('user-agent'))
+      });
+    }
+
+    if (tag.modo === 'alojamiento') {
+      const view = buildGuestView({
+        blockRows: models.listBlocks(tag.id),
+        acceptLanguage: req.get('accept-language'),
+        defaultLanguage: tag.alojIdioma,
+        secret: config.wifiSecret
+      });
+      return res.render('public/alojamiento', {
+        title: `${tag.nombre} · Información de tu estancia`,
+        nombre: tag.nombre,
+        view,
+        despedida: tag.modoDespedida,
         os: detectOS(req.get('user-agent'))
       });
     }

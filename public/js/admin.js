@@ -171,6 +171,72 @@
     update();
   }
 
+  // ===== Alojamiento: pestañas de idioma + visibilidad de bloques =====
+  // Cada idioma se guarda por separado (b_{lang}_present marca los idiomas con
+  // contenido) y cada bloque solo se muestra si tiene algo escrito.
+  var tagForm = document.getElementById('tag-form');
+  var alojField = tagForm ? tagForm.querySelector('.field-alojamiento') : null;
+  if (alojField) {
+    var setLangState = function (lang) {
+      var wrapEl = alojField.querySelector('.aloj-lang[data-lang="' + lang + '"]');
+      if (!wrapEl) return;
+      var has = false;
+      wrapEl.querySelectorAll('[name^="b_' + lang + '_"]').forEach(function (input) {
+        if (input.type === 'hidden') return;
+        if (String(input.value).trim() !== '') has = true;
+      });
+      var presentInput = wrapEl.querySelector('input[name="b_' + lang + '_present"]');
+      if (presentInput) presentInput.value = has ? '1' : '0';
+      var stateEl = wrapEl.querySelector('.aloj-lang-state');
+      if (stateEl) stateEl.textContent = has ? '· con contenido ✓' : '';
+      wrapEl.querySelectorAll('[data-block]').forEach(function (blk) {
+        var blockName = blk.dataset.block;
+        var any = false;
+        blk.querySelectorAll('input, textarea').forEach(function (inp) {
+          if (blockName === 'wifi' && /_password$/.test(inp.name || '')) return;
+          if (String(inp.value).trim() !== '') any = true;
+        });
+        blk.classList.toggle('shown', any);
+      });
+    };
+
+    alojField.querySelectorAll('.aloj-lang-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var lang = tab.dataset.langTab;
+        alojField.querySelectorAll('.aloj-lang').forEach(function (wrapEl) {
+          var body = wrapEl.querySelector('.aloj-lang-body');
+          var isThis = wrapEl.dataset.lang === lang;
+          if (body) body.hidden = !isThis;
+          wrapEl.classList.toggle('open', isThis);
+        });
+        alojField.querySelectorAll('.aloj-lang-tab').forEach(function (tb) {
+          tb.classList.toggle('active', tb.dataset.langTab === lang);
+        });
+      });
+    });
+
+    ['es', 'en'].forEach(function (lang) {
+      var wrapEl = alojField.querySelector('.aloj-lang[data-lang="' + lang + '"]');
+      if (!wrapEl) return;
+      wrapEl.addEventListener('input', function (e) {
+        var t = e.target;
+        if (t.name && t.name.indexOf('b_' + lang + '_') === 0) setLangState(lang);
+      });
+      setLangState(lang);
+    });
+
+    // Pestaña inicial: el idioma principal si tiene contenido; si no, el que lo tenga.
+    (function () {
+      var esWrap = alojField.querySelector('.aloj-lang[data-lang="es"]');
+      var esHas = esWrap && esWrap.querySelector('.aloj-lang-state').textContent !== '';
+      var enWrap = alojField.querySelector('.aloj-lang[data-lang="en"]');
+      var enHas = enWrap && enWrap.querySelector('.aloj-lang-state').textContent !== '';
+      var open = esHas || !enHas ? 'es' : 'en';
+      var tab = alojField.querySelector('.aloj-lang-tab[data-lang-tab="' + open + '"]');
+      if (tab) tab.click();
+    })();
+  }
+
   // Restaurar copia de seguridad (subida del fichero .db en crudo)
   var backupBox = document.getElementById('backup-restore');
   if (backupBox) {

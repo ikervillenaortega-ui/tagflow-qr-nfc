@@ -35,7 +35,7 @@
   <fieldset>
     <legend>Modo de destino</legend>
     <div class="modo-cards">
-      <% const modoSel = values ? values.modo : (preselectModo || (tag ? tag.modo : 'desactivado')); %>
+      <% const modoSel = (values && values.modo) ? values.modo : (preselectModo || (tag ? tag.modo : 'desactivado')); %>
       <label class="modo-card">
         <input type="radio" name="modo" value="url" <%= modoSel === 'url' ? 'checked' : '' %>>
         <strong>URL</strong>
@@ -55,6 +55,11 @@
         <input type="radio" name="modo" value="presentacion" <%= modoSel === 'presentacion' ? 'checked' : '' %>>
         <strong>Presentación</strong>
         <span>Tarjeta personal: foto circular, descripción y contacto.</span>
+      </label>
+      <label class="modo-card">
+        <input type="radio" name="modo" value="alojamiento" <%= modoSel === 'alojamiento' ? 'checked' : '' %>>
+        <strong>Alojamiento</strong>
+        <span>Guía del huésped: acceso, WiFi, normas, manual y reseña.</span>
       </label>
       <label class="modo-card">
         <input type="radio" name="modo" value="desactivado" <%= modoSel === 'desactivado' ? 'checked' : '' %>>
@@ -137,6 +142,97 @@
       </label>
       <p class="muted">El teléfono y el correo de contacto se añaden en la sección «Datos de contacto» de justo debajo: aparecerán al final de la tarjeta, con botones de llamar y escribir.</p>
     </div>
+  </fieldset>
+
+  <fieldset class="field-alojamiento">
+    <legend>Alojamiento turístico · Contenido para el huésped</legend>
+    <p class="muted">Rellena solo lo que quieras mostrar: los bloques vacíos no aparecen en la página del huésped. El WiFi <strong>nunca</strong> se muestra como texto: se usa para conectar al móvil automáticamente al tocar el tag. El contenido se puede cambiar en cualquier momento sin reprogramar el QR/NFC físico.</p>
+    <div class="form-grid">
+      <label>Idioma principal (para el huésped)
+        <select name="aloj_idioma">
+          <option value="es" <%= (tag ? tag.alojIdioma : 'es') === 'es' ? 'selected' : '' %>>Español</option>
+          <option value="en" <%= (tag ? tag.alojIdioma : 'es') === 'en' ? 'selected' : '' %>>English</option>
+        </select>
+        <small>Si un bloque no está traducido al idioma del móvil del huésped, se muestra en este idioma.</small>
+      </label>
+    </div>
+
+    <% ['es','en'].forEach(function (lang, idx) {
+         const b = (blocksByLang && blocksByLang[lang]) || {};
+         const acceso = b.acceso && b.acceso.texto || '';
+         const wifiSsid = b.wifi && b.wifi.ssid || '';
+         const wifiHasPw = Boolean(b.wifi && b.wifi.password_enc);
+         const normas = (b.normas && b.normas.items || []).map(function (i) { return i.text; }).join('\n');
+         const manual = (b.manual && b.manual.items || []).map(function (i) { return [i.title, i.description || '', i.media_url || ''].join(' | ').replace(/ \| $/, ''); }).join('\n');
+         const recos = (b.recomendaciones && b.recomendaciones.items || []).map(function (i) { return [i.title, i.category || i.description || ''].join(' | ').replace(/ \| $/, ''); }).join('\n');
+         const wa = b.contacto && b.contacto.whatsapp || '';
+         const tel = b.contacto && b.contacto.telefono || '';
+         const mail = b.contacto && b.contacto.email || '';
+         const resena = b.resena && b.resena.url || '';
+    %>
+    <div class="aloj-lang" data-lang="<%= lang %>">
+      <div class="aloj-lang-head">
+        <button type="button" class="aloj-lang-tab" data-lang-tab="<%= lang %>"><%= idx === 0 ? '🇪🇸 Español' : '🇬🇧 English' %></button>
+        <span class="muted aloj-lang-state"></span>
+      </div>
+      <div class="aloj-lang-body" <%= idx === 0 ? '' : 'hidden' %>>
+      <input type="hidden" name="b_<%= lang %>_present" value="0">
+      <h4 class="aloj-block-title">🔑 Acceso al alojamiento</h4>
+      <label class="aloj-field" data-block="acceso">
+        <textarea name="b_<%= lang %>_acceso_texto" rows="3" maxlength="3000" placeholder="Código de la puerta, dónde está la llave, instrucciones del ascensor…"><%= acceso %></textarea>
+      </label>
+
+      <h4 class="aloj-block-title">📶 WiFi (conexión automática)</h4>
+      <label class="aloj-field" data-block="wifi">
+        <span class="aloj-field-label">Nombre de la red (SSID)</span>
+        <input type="text" name="b_<%= lang %>_aloj_wifi_ssid" maxlength="64" value="<%= wifiSsid %>" placeholder="MiRedWiFi">
+        <span class="aloj-field-label">Contraseña</span>
+        <input type="text" name="b_<%= lang %>_aloj_wifi_password" autocomplete="off" value="" placeholder="<%= wifiHasPw ? 'En blanco: se mantiene la guardada' : 'Nunca se muestra en la web' %>">
+        <small><%= wifiHasPw ? 'Hay una contraseña guardada (cifrada). Escríbela solo si quieres cambiarla.' : 'Se guarda cifrada (AES-256-GCM) y no aparece en ninguna pantalla.' %></small>
+      </label>
+
+      <h4 class="aloj-block-title">📋 Normas de la casa</h4>
+      <label class="aloj-field" data-block="normas">
+        <textarea name="b_<%= lang %>_normas_texto" rows="4" placeholder="Una norma por línea:\nHorario de silencio de 23:00 a 9:00\nNo se admiten mascotas\nCheck-out antes de las 11:00"><%= normas %></textarea>
+        <small>Una norma por línea.</small>
+      </label>
+
+      <h4 class="aloj-block-title">🏠 Manual de electrodomésticos</h4>
+      <label class="aloj-field" data-block="manual">
+        <textarea name="b_<%= lang %>_manual_texto" rows="4" placeholder="Una línea por aparato:\nAire acondicionado | Mando junto a la puerta | https://youtu.be/…\nLavadora | Programa 3 para ropa normal"><%= manual %></textarea>
+        <small>Formato: <code>Título | Descripción | Enlace vídeo/foto (opcional)</code> — una línea por aparato.</small>
+      </label>
+
+      <h4 class="aloj-block-title">📍 Recomendaciones locales</h4>
+      <label class="aloj-field" data-block="recomendaciones">
+        <textarea name="b_<%= lang %>_recomendaciones_texto" rows="4" placeholder="Una línea por sitio:\nLa Bodega | Restaurante | Tapeo tradicional a 2 min\nFarmacia 24h | Farmacia | Abre hasta medianoche\nMetro Ópera | Transporte | Líneas 2 y 5"><%= recos %></textarea>
+        <small>Formato: <code>Nombre | Categoría | Nota corta (opcional)</code> — una línea por sitio.</small>
+      </label>
+
+      <h4 class="aloj-block-title">📞 Contacto del anfitrión</h4>
+      <div class="form-grid" data-block="contacto">
+        <label>WhatsApp (con prefijo internacional)
+          <input type="text" name="b_<%= lang %>_aloj_contacto_whatsapp" maxlength="20" value="<%= wa %>" placeholder="+34600000000">
+          <small>Botón directo a WhatsApp: el número no se muestra.</small>
+        </label>
+        <label>Teléfono (llamada)
+          <input type="text" name="b_<%= lang %>_aloj_contacto_telefono" maxlength="20" value="<%= tel %>" placeholder="+34600000000">
+          <small>Botón directo de llamada: el número no se muestra.</small>
+        </label>
+        <label>Correo electrónico
+          <input type="email" name="b_<%= lang %>_aloj_contacto_email" maxlength="120" value="<%= mail %>" placeholder="anfitrion@ejemplo.com">
+        </label>
+      </div>
+
+      <h4 class="aloj-block-title">⭐ Enlace de reseña</h4>
+      <label class="aloj-field" data-block="resena">
+        <input type="url" name="b_<%= lang %>_resena_url" maxlength="2048" value="<%= resena %>" placeholder="https://www.airbnb.com/r/… · https://g.page/r/… · https://www.booking.com/…">
+        <small>Se muestra como botón destacado «Deja tu reseña».</small>
+      </label>
+      </div>
+    </div>
+    <% }); %>
+    <p class="muted">💡 Pestañas de idioma: lo que escribas en una se conserva al cambiar a la otra. Cada idioma se guarda por separado.</p>
   </fieldset>
 
   <fieldset class="field-contacto">

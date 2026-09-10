@@ -9,7 +9,7 @@ const { createAuth } = require('./auth');
 const { createPublicRouter } = require('./routes/public');
 const { createAdminRouter } = require('./routes/admin');
 const { createModels } = require('./models');
-const { fmtDate } = require('./helpers');
+const { fmtDate, escapeHtml } = require('./helpers');
 
 function createApp({ config, db }) {
   const models = createModels(db, config);
@@ -67,6 +67,7 @@ function createApp({ config, db }) {
     res.locals.appName = config.appName;
     res.locals.v = assetVersion;
     res.locals.fmtDate = fmtDate;
+    res.locals.escapeHtml = escapeHtml;
     res.locals.urlenc = (s) => encodeURIComponent(String(s));
     res.locals.currentUser = req.session && req.session.userId ? { username: req.session.username } : null;
     res.locals.csrfToken = req.session ? req.session.csrf : '';

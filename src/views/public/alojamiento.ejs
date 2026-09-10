@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="<%= view.lang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root { color-scheme: light dark; --bg:#eef2f7; --card:#fff; --ink:#16233a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --soft:#eef4ff; --ok:#16a34a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); padding: 16px 12px 40px; }
+    .wrap { max-width: 560px; margin: 0 auto; }
+    header.hero { text-align: center; padding: 22px 12px 14px; }
+    .logo { width: 54px; height: 54px; border-radius: 16px; background: linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size: 26px; box-shadow: 0 8px 20px rgba(37,99,235,.25); }
+    h1 { font-size: 22px; margin: 12px 0 4px; letter-spacing: -.2px; }
+    .hero-sub { color: var(--muted); font-size: 14px; margin: 0; }
+    .lang-note { display:inline-block; margin-top: 8px; font-size: 12px; color: var(--muted); background: rgba(100,116,139,.1); border-radius: 999px; padding: 3px 10px; }
+    section.block { background: var(--card); border-radius: 16px; box-shadow: 0 4px 16px rgba(15,23,42,.08); padding: 18px; margin-top: 14px; }
+    .block-title { display:flex; align-items:center; gap:8px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 700; }
+    .block-title .ico { font-size: 16px; }
+    .acceso-texto { white-space: pre-line; font-size: 15.5px; line-height: 1.65; margin: 0; }
+    .code-chip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--soft); border: 1px dashed #b6c7e7; padding: 1px 6px; border-radius: 6px; }
+    /* WiFi */
+    .wifi-ssid { font-weight: 800; font-size: 18px; word-break: break-all; }
+    .wifi-connect { margin-top: 12px; width: 100%; padding: 14px 16px; font-size: 16px; font-weight: 700; color:#fff; background: var(--ok); border: 0; border-radius: 12px; cursor: pointer; }
+    .wifi-connect:active { filter: brightness(.92); }
+    .wifi-msg { font-size: 14px; margin: 10px 0 0; line-height: 1.5; }
+    .wifi-msg.ok { color: var(--ok); font-weight: 600; }
+    .wifi-msg.err { color: #b91c1c; }
+    .wifi-msg.busy { color: var(--muted); }
+    .wifi-steps { margin-top: 14px; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; background: var(--soft); }
+    .wifi-steps h3 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing:.4px; }
+    .wifi-steps ol { margin: 6px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.6; }
+    /* Listas */
+    ul.plain { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.7; }
+    ul.plain li + li { margin-top: 4px; }
+    .item { padding: 10px 0; border-top: 1px solid var(--line); }
+    .item:first-of-type { border-top: 0; padding-top: 2px; }
+    .item b { display: block; font-size: 15.5px; }
+    .item p { margin: 2px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .item .media-link { font-size: 13.5px; text-decoration: none; font-weight: 600; }
+    .cat-badge { display:inline-block; font-size: 11px; font-weight: 700; background: var(--soft); color: var(--accent); border-radius: 999px; padding: 2px 9px; margin-left: 6px; vertical-align: middle; }
+    /* Botones de contacto */
+    .btn-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .big-btn { display:flex; align-items:center; justify-content:center; gap:8px; padding: 13px 12px; border-radius: 12px; font-weight: 700; font-size: 15px; text-decoration: none; }
+    .big-btn.wa { background:#dcfce8; color:#15803d; }
+    .big-btn.tel { background:#e0e7ff; color:#3730a3; }
+    .big-btn.mail { background:#fef3c7; color:#b45309; }
+    .big-btn.full { grid-column: 1 / -1; }
+    /* Reseña */
+    .resena-btn { display:flex; align-items:center; justify-content:center; gap: 10px; width:100%; padding: 16px; font-size: 16.5px; font-weight: 800; color:#fff; text-decoration:none; border-radius: 14px; background: linear-gradient(135deg,#f59e0b,#f97316); box-shadow: 0 6px 18px rgba(249,115,22,.3); }
+    .farewell { text-align:center; font-size: 15px; color: var(--muted); font-style: italic; margin: 4px 0 2px; line-height: 1.6; }
+    footer.foot { text-align:center; margin-top: 22px; font-size: 12px; color: var(--muted); }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0b1220; --card:#151f31; --ink:#e2e8f0; --muted:#94a3b8; --line:#2a3a55; --soft:#1b2942; }
+      body { background: var(--bg); }
+      section.block { box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+      .big-btn.wa { background:#143524; color:#4ade80; }
+      .big-btn.tel { background:#1e2650; color:#a5b4fc; }
+      .big-btn.mail { background:#3a2c10; color:#fcd34d; }
+      .code-chip { background: var(--soft); border-color:#3b5378; }
+    }
+  </style>
+</head>
+<%
+  // Textos fijos de la interfaz en el idioma resuelto (el contenido del
+  // anfitrión viaja tal cual; esto solo traduce el marco). El idioma resuelto
+  // siempre es 'es' o 'en' (fallback al principal si el navegador habla otro).
+  var T = {
+    es: { sub: 'Información de tu estancia', acceso: 'Acceso al alojamiento', wifi: 'WiFi', wifiCta: '📲 Conectarme a la red', wifiSteps: 'Cómo conectarte', normas: 'Normas de la casa', manual: 'Manual de la casa', recos: 'Recomendaciones locales', contacto: 'Contacta con tu anfitrión', wa: 'WhatsApp', tel: 'Llamar', mail: 'Enviar correo', resena: 'Deja tu reseña ⭐', despedida: '¡Gracias por tu estancia! Si te ha gustado, nos ayuda muchísimo que nos dejes tu reseña:', langEs: 'Español', langEn: 'English', wifiStepsAndroid: ['Pulsa «Conectarme a la red» y confirma en la ventana del móvil.', 'Si no aparece: abre Ajustes → WiFi.'], wifiStepsOther: ['Abre los ajustes de WiFi de tu dispositivo.'] },
+    en: { sub: 'Your stay information', acceso: 'Getting in', wifi: 'WiFi', wifiCta: '📲 Connect to the network', wifiSteps: 'How to connect', normas: 'House rules', manual: 'House manual', recos: 'Local recommendations', contacto: 'Contact your host', wa: 'WhatsApp', tel: 'Call', mail: 'Send email', resena: 'Leave a review ⭐', despedida: 'Thanks for your stay! If you enjoyed it, leaving a review helps us a lot:', langEs: 'Español', langEn: 'English', wifiStepsAndroid: ['Tap “Connect to the network” and confirm on your phone.', 'If it does not show up: open Settings → WiFi.'], wifiStepsOther: ['Open your device’s WiFi settings.'] }
+  }[view.lang];
+%>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <span class="logo">🏡</span>
+      <h1><%= nombre %></h1>
+      <p class="hero-sub"><%= T.sub %></p>
+      <% if (view.lang !== view.def) { %>
+        <span class="lang-note">🌐 <%= view.lang === 'en' ? T.langEn : T.langEs %></span>
+      <% } %>
+    </header>
+
+    <%
+      // En modo despedida la reseña va primero y con mensaje de agradecimiento.
+      const ordered = view.blocks.slice();
+      const idxResena = ordered.findIndex(function (b) { return b.type === 'resena'; });
+      let resenaBlock = null;
+      if (despedida && idxResena !== -1) {
+        resenaBlock = ordered.splice(idxResena, 1)[0];
+        ordered.unshift(resenaBlock);
+      }
+      const firstResena = resenaBlock;
+      const isResenaFirst = function (b) { return b === firstResena; };
+      for (const b of ordered) { %>
+
+      <% if (b.type === 'resena' && isResenaFirst(b)) { %>
+      <section class="block">
+        <p class="farewell"><%= T.despedida %></p>
+        <a class="resena-btn" href="<%= b.url %>" target="_blank" rel="noopener"><%= T.resena %></a>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'acceso') { %>
+      <section class="block">
+        <h2 class="block-title"><span class="ico">🔑</span><%= T.acceso %></h2>
+        <p class="acceso-texto"><%= b.texto %></p>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'wifi') { %>
+      <section class="block" data-wifi-block data-wifi='<%= JSON.stringify({ ssid: b.ssid, password: b.password, security: b.security }) %>' data-os-steps='<%= JSON.stringify(T.wifiStepsAndroid) %>'>
+        <h2 class="block-title"><span class="ico">📶</span><%= T.wifi %></h2>
+        <div class="wifi-ssid"><%= b.ssid %></div>
+        <button type="button" class="wifi-connect" data-wifi-connect hidden><%= T.wifiCta %></button>
+        <p class="wifi-msg" data-wifi-msg></p>
+        <div class="wifi-steps">
+          <h3><%= T.wifiSteps %></h3>
+          <ol>
+            <% if (os === 'android') { %>
+              <li><%= T.wifiStepsAndroid[0] %></li>
+              <li><%= T.wifiStepsAndroid[1] %></li>
+            <% } else { %>
+              <li><%= T.wifiStepsOther[0] %></li>
+            <% } %>
+            <li><%- view.lang === 'en' ? 'Select the network <strong>' + escapeHtml(b.ssid) + '</strong>.' : 'Selecciona la red <strong>' + escapeHtml(b.ssid) + '</strong>.' %></li>
+          </ol>
+        </div>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'normas') { %>
+      <section class="block">
+        <h2 class="block-title"><span class="ico">📋</span><%= T.normas %></h2>
+        <ul class="plain"><% for (const i of b.items) { %><li><%= i.text %></li><% } %></ul>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'manual') { %>
+      <section class="block">
+        <h2 class="block-title"><span class="ico">🏠</span><%= T.manual %></h2>
+        <% for (const i of b.items) { %>
+          <div class="item">
+            <b><%= i.title %></b>
+            <% if (i.description) { %><p><%= i.description %></p><% } %>
+            <% if (i.media_url) { %><a class="media-link" href="<%= i.media_url %>" target="_blank" rel="noopener">▶ <span data-media-label="<%= i.media_url %>">Ver</span></a><% } %>
+          </div>
+        <% } %>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'recomendaciones') { %>
+      <section class="block">
+        <h2 class="block-title"><span class="ico">📍</span><%= T.recos %></h2>
+        <% for (const i of b.items) { %>
+          <div class="item">
+            <b><%= i.title %><% if (i.category) { %><span class="cat-badge"><%= i.category %></span><% } %></b>
+            <% if (i.description) { %><p><%= i.description %></p><% } %>
+          </div>
+        <% } %>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'contacto') { %>
+      <section class="block">
+        <h2 class="block-title"><span class="ico">💬</span><%= T.contacto %></h2>
+        <div class="btn-grid">
+          <% if (b.whatsapp) { %><a class="big-btn wa" href="https://wa.me/<%= b.whatsapp.replace('+','') %>" target="_blank" rel="noopener">🟢 <%= T.wa %></a><% } %>
+          <% if (b.telefono) { %><a class="big-btn tel" href="tel:<%= b.telefono %>">📞 <%= T.tel %></a><% } %>
+          <% if (b.email) { %><a class="big-btn mail<%= (b.whatsapp || b.telefono) ? '' : ' full' %>" href="mailto:<%= b.email %>">✉️ <%= T.mail %></a><% } %>
+        </div>
+      </section>
+      <% continue; } %>
+
+      <% if (b.type === 'resena') { %>
+      <section class="block">
+        <a class="resena-btn" href="<%= b.url %>" target="_blank" rel="noopener"><%= T.resena %></a>
+      </section>
+      <% continue; } %>
+
+    <% } %>
+
+    <footer class="foot">🏡 <%= nombre %></footer>
+  </div>
+  <script src="/js/public.js?v=<%= v %>"></script>
+</body>
+</html>

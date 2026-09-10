@@ -1,0 +1,69 @@
+<%- include('partials/header', { title, active }) %>
+<section class="page-head">
+  <h1>Alojamientos</h1>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="/admin/tags/nuevo?modo=alojamiento">+ Nueva propiedad</a>
+  </div>
+</section>
+<p class="muted">Propiedades turísticas con guía para el huésped: acceso, WiFi con conexión automática, normas, manual, recomendaciones, contacto y reseña. El QR/NFC físico nunca cambia: el contenido se edita aquí y el cambio es inmediato.</p>
+
+<form method="get" action="/admin/alojamientos" class="filters">
+  <input type="search" name="q" value="<%= filters.q %>" placeholder="Buscar propiedad…">
+  <button type="submit" class="btn">Buscar</button>
+  <% if (filters.q) { %><a class="link" href="/admin/alojamientos">Limpiar</a><% } %>
+</form>
+
+<% if (list.rows.length === 0) { %>
+  <div class="empty">
+    <p><%= filters.q ? 'Ninguna propiedad coincide con la búsqueda.' : 'Todavía no hay propiedades. Crea la primera y programa su tag NFC o QR.' %></p>
+    <a class="btn btn-primary" href="/admin/tags/nuevo?modo=alojamiento">Crear la primera</a>
+  </div>
+<% } else { %>
+<div class="aloj-list">
+  <% for (const tag of list.rows) { %>
+  <div class="aloj-card">
+    <div class="aloj-card-main">
+      <a class="tag-name" href="/admin/tags/<%= tag.id %>"><%= tag.nombre %></a>
+      <div class="tag-slug">/t/<%= tag.slug %></div>
+      <div class="aloj-meta">
+        <span class="badge badge-modo badge-<%= tag.estado === 'activo' ? 'activo' : 'pausado' %>"><%= tag.estado === 'activo' ? 'Activa' : 'Inactiva' %></span>
+        <span class="badge badge-modo"><%= tag.alojIdioma === 'en' ? '🇬🇧 EN principal' : '🇪🇸 ES principal' %></span>
+        <% if (tag.modoDespedida) { %><span class="badge badge-modo badge-alojamiento">👋 Despedida</span><% } %>
+      </div>
+      <div class="aloj-stats">
+        <span><strong><%= tag.escaneos %></strong> escaneos</span>
+        <% if (tag.ultimoEscaneo) { %><span>· último <%= fmtDate(tag.ultimoEscaneo) %></span><% } %>
+      </div>
+    </div>
+    <div class="aloj-card-actions">
+      <a class="btn btn-sm" href="/t/<%= tag.slug %>" target="_blank" rel="noopener" title="Ver la página que ve el huésped">👁 Ver</a>
+      <a class="btn btn-sm" href="/admin/tags/<%= tag.id %>/editar?modo=alojamiento">✏️ Editar contenido</a>
+      <form method="post" action="/admin/tags/<%= tag.id %>/duplicar" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="nombre" value="">
+        <button type="submit" class="btn btn-sm" title="Copiar la configuración completa a una propiedad nueva">📄 Duplicar</button>
+      </form>
+      <form method="post" action="/admin/tags/<%= tag.id %>/despedida" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-sm <%= tag.modoDespedida ? 'btn-danger' : '' %>" title="Prioriza el botón de reseña en la página del huésped (último día de estancia)">
+          <%= tag.modoDespedida ? 'Quitar despedida' : '👋 Modo despedida' %>
+        </button>
+      </form>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<% if (list.pages > 1) { %>
+<div class="pagination">
+  <% if (list.page > 1) { %>
+    <a class="btn btn-sm" href="?page=<%= list.page - 1 %>&q=<%= urlenc(filters.q) %>">← Anterior</a>
+  <% } %>
+  <span class="muted">Página <%= list.page %> de <%= list.pages %></span>
+  <% if (list.page < list.pages) { %>
+    <a class="btn btn-sm" href="?page=<%= list.page + 1 %>&q=<%= urlenc(filters.q) %>">Siguiente →</a>
+  <% } %>
+</div>
+<% } %>
+<% } %>
+<%- include('partials/footer') %>

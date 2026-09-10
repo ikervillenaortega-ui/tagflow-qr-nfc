@@ -6,6 +6,48 @@
   var ssid = body.dataset.ssid || '';
   var hasPw = body.dataset.hasPw === 'true';
 
+  // ===== Alojamiento: conexión WiFi automática desde la página del huésped =====
+  var wifiBlock = document.querySelector('[data-wifi-block]');
+  if (wifiBlock && wifiBlock.dataset.wifi) {
+    var wifiData = null;
+    try { wifiData = JSON.parse(wifiBlock.dataset.wifi); } catch (e) { wifiData = null; }
+    var wConnect = wifiBlock.querySelector('[data-wifi-connect]');
+    var wMsg = wifiBlock.querySelector('[data-wifi-msg]');
+    var cred = null;
+    if (wifiData) {
+      cred = { type: wifiData.security === 'nopass' ? 'open' : (wifiData.security === 'WEP' ? 'wep' : 'wpa2'), ssid: wifiData.ssid };
+      if (wifiData.security !== 'nopass' && wifiData.password) cred.password = wifiData.password;
+    }
+    var wm = navigator.wifi;
+    var canConnect = cred && wm && typeof wm.getCcms === 'function' && typeof wm.addCcm === 'function';
+    if (canConnect && wConnect && wMsg) {
+      wConnect.hidden = false;
+      wConnect.addEventListener('click', function () {
+        wMsg.textContent = 'Abriendo la conexión…';
+        wMsg.className = 'wifi-msg busy';
+        wm.getCcms().then(function (list) {
+          var existing = null;
+          for (var i = 0; list && i < list.length; i++) {
+            if (list[i] && list[i].ssid === cred.ssid) existing = list[i];
+          }
+          var op = existing ? wm.addCcm(cred, existing.id) : wm.addCcm(cred);
+          return Promise.resolve(op).then(function () {
+            wMsg.textContent = '✓ Red guardada. Si no te has conectado ya, elígela en Ajustes → WiFi.';
+            wMsg.className = 'wifi-msg ok';
+          });
+        }).catch(function (err) {
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+            wMsg.textContent = 'Conexión cancelada. Da permiso al navegador y vuelve a intentarlo.';
+            wMsg.className = 'wifi-msg err';
+          } else {
+            wMsg.textContent = 'No se pudo completar la conexión: sigue los pasos de abajo.';
+            wMsg.className = 'wifi-msg err';
+          }
+        });
+      });
+    }
+  }
+
   // Instrucciones adaptadas al sistema operativo detectado.
   var steps = document.getElementById('steps');
   if (steps) {
