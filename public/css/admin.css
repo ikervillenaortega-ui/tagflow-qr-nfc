@@ -168,7 +168,11 @@ small { color: var(--muted); font-size: 12px; }
 .modo-card strong { font-size: 14px; }
 .modo-card span { font-size: 12px; color: var(--muted); }
 /* Ocultos solo cuando JS está activo (fallback sin JS: todos visibles) */
-html.js .field-url, html.js .field-wifi, html.js .field-presentacion, html.js .field-alojamiento { display: none; }
+html.js .field-url, html.js .field-wifi, html.js .field-presentacion { display: none; }
+/* field-alojamiento se muestra por CSS puro según el modo marcado (sin depender
+   del JS, inmune a scripts viejos en caché). Con :has() no soportado, queda
+   siempre visible: nunca puede quedarse en blanco. */
+html.js .tag-form:not(:has(input[name="modo"][value="alojamiento"]:checked)) .field-alojamiento { display: none; }
 .form-actions { display: flex; gap: 10px; margin-top: 8px; }
 .code-block {
   display: block; background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 12px;
