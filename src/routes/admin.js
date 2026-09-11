@@ -15,13 +15,18 @@ const { BLOCK_TYPES, LANGUAGES, LANGUAGE_NAMES, validateAlojamientoInput, BLOCK_
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // Bloques de alojamiento de un tag agrupados por idioma y tipo (para las
-// pestañas de idioma del formulario de edición).
-function blocksByLangFor(models, tag) {
+// pestañas de idioma del formulario de edición). Con opts.decryptWifi, la
+// contraseña guardada del WiFi viaja descifrada para mostrarse en el
+// formulario (no se oculta: el anfitrión la ve y puede cambiarla).
+function blocksByLangFor(models, tag, opts) {
   const out = {};
   if (!tag) return out;
   for (const row of models.listBlocks(tag.id)) {
     let content = null;
     try { content = JSON.parse(row.content); } catch { content = null; }
+    if (content && opts && opts.decryptWifi && row.block_type === 'wifi' && content.password_enc && opts.secret) {
+      try { content.password = decryptText(content.password_enc, opts.secret); } catch { content.password = ''; }
+    }
     out[row.language] = out[row.language] || {};
     out[row.language][row.block_type] = content;
   }
@@ -676,7 +681,8 @@ function createAdminRouter({ db, models, config, auth }) {
       values: null,
       preselectModo,
       slugPreview: tag.slug,
-      blocksByLang: blocksByLangFor(models, tag)
+      wifiPasswordShown: tag.wifiPasswordEnc ? models.decryptWifiPassword(tag) : '',
+      blocksByLang: blocksByLangFor(models, tag, { decryptWifi: true, secret: config.wifiSecret })
     });
   });
 
@@ -706,7 +712,8 @@ function createAdminRouter({ db, models, config, auth }) {
         values: req.body || {},
         preselectModo: null,
         slugPreview: tag.slug,
-        blocksByLang: blocksByLangFor(tag)
+        wifiPasswordShown: tag.wifiPasswordEnc ? models.decryptWifiPassword(tag) : '',
+        blocksByLang: blocksByLangFor(models, tag, { secret: config.wifiSecret })
       });
     }
 
@@ -721,7 +728,8 @@ function createAdminRouter({ db, models, config, auth }) {
           values: req.body || {},
           preselectModo: null,
           slugPreview: tag.slug,
-          blocksByLang: blocksByLangFor(tag)
+          wifiPasswordShown: tag.wifiPasswordEnc ? models.decryptWifiPassword(tag) : '',
+          blocksByLang: blocksByLangFor(models, tag, { secret: config.wifiSecret })
         });
       }
     }

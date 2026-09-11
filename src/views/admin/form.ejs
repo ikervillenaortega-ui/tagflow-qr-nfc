@@ -84,11 +84,11 @@
         <input type="text" name="wifi_ssid" maxlength="64" value="<%= values ? values.wifi_ssid : (tag ? tag.wifiSsid : '') %>" placeholder="MiRedWiFi">
       </label>
       <label>Contraseña
-        <input type="text" name="wifi_password" autocomplete="off" value="<%= values ? values.wifi_password : '' %>" placeholder="<%= tag ? 'Pulsa «Ver contraseña guardada» o escribe una nueva' : 'Mín. 8 caracteres (WPA)' %>">
-        <small>La contraseña no se muestra por seguridad. Se guarda cifrada (AES-256-GCM) y solo viaja dentro del botón de conexión automática de la página pública.</small>
+        <input type="text" name="wifi_password" autocomplete="off" value="<%= values ? values.wifi_password : (tag ? (wifiPasswordShown || '') : '') %>" placeholder="<%= tag ? 'La contraseña guardada ya está aquí: puedes verla o cambiarla' : 'Mín. 8 caracteres (WPA)' %>">
+        <small>La contraseña guardada se muestra arriba para que puedas copiarla o cambiarla. Se guarda cifrada (AES-256-GCM) y viaja con el huésped para conectarlo con un toque.</small>
       </label>
       <div class="btn-row">
-        <button type="button" class="btn btn-sm pw-reveal" data-pw-target="wifi_password" <%= tag ? '' : 'hidden' %>>👁 Ver contraseña guardada</button>
+        <button type="button" class="btn btn-sm pw-reveal" data-pw-target="wifi_password" <%= tag && !wifiPasswordShown ? '' : 'hidden' %>>👁 Ver contraseña guardada</button>
         <span class="muted pw-reveal-note" hidden></span>
       </div>
       <label>Tipo de seguridad *
@@ -191,10 +191,10 @@
           <span class="aloj-field-label">Nombre de la red (SSID)</span>
           <input type="text" name="b_<%= lang %>_aloj_wifi_ssid" maxlength="64" value="<%= alojVal(lang, 'wifi.ssid') %>" placeholder="MiRedWiFi">
           <span class="aloj-field-label">Contraseña</span>
-          <input type="text" name="b_<%= lang %>_aloj_wifi_password" autocomplete="off" value="" placeholder="<%= alojVal(lang, 'wifi.password_enc') ? 'Pulsa «Ver contraseña guardada» o escribe una nueva' : 'La que conecta los móviles de los huéspedes' %>">
-          <small>La contraseña nunca aparece como texto en la web: se usa para conectar el móvil del huésped con un toque. Se guarda cifrada (AES-256-GCM).</small>
+          <input type="text" name="b_<%= lang %>_aloj_wifi_password" autocomplete="off" value="<%= values && values['b_' + lang + '_aloj_wifi_password'] ? values['b_' + lang + '_aloj_wifi_password'] : alojVal(lang, 'wifi.password') %>" placeholder="La que conecta los móviles de los huéspedes">
+          <small>La contraseña guardada se muestra aquí: puedes copiarla o cambiarla. Se guarda cifrada (AES-256-GCM) y en la web del huésped aparece con un botón «Copiar».</small>
           <div class="btn-row">
-            <button type="button" class="btn btn-sm pw-reveal" data-pw-target="b_<%= lang %>_aloj_wifi_password" <%= alojVal(lang, 'wifi.password_enc') ? '' : 'hidden' %>>👁 Ver contraseña guardada</button>
+            <button type="button" class="btn btn-sm pw-reveal" data-pw-target="b_<%= lang %>_aloj_wifi_password" <%= alojVal(lang, 'wifi.password') ? 'hidden' : '' %>>👁 Ver contraseña guardada</button>
             <span class="muted pw-reveal-note" hidden></span>
           </div>
         </label>
