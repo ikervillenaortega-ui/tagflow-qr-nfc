@@ -44,7 +44,9 @@ function createApp({ config, db }) {
   );
 
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
-  app.use(express.static(path.join(config.root, 'public'), { maxAge: '1d' }));
+  // ETag revalida en cada carga: sin max-age el navegador no sirve copias
+  // obsoletas tras un cambio o despliegue (el 1d anterior escondía cambios).
+  app.use(express.static(path.join(config.root, 'public'), { maxAge: 0, etag: true }));
 
   // Las páginas dinámicas (panel y vistas públicas) no se cachean: así el
   // navegador nunca reutiliza una versión antigua tras un despliegue y los

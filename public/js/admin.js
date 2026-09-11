@@ -33,6 +33,7 @@
     var wifiField = form.querySelector('.field-wifi');
     var contactoField = form.querySelector('.field-contacto');
     var presField = form.querySelector('.field-presentacion');
+    var alojModeField = form.querySelector('.field-alojamiento');
     var ssidInput = form.querySelector('input[name="wifi_ssid"]');
     var pwInput = form.querySelector('input[name="wifi_password"]');
     var secSelect = form.querySelector('select[name="wifi_seguridad"]');
@@ -153,6 +154,7 @@
       if (wifiField) wifiField.style.display = modo === 'wifi' ? 'block' : 'none';
       if (contactoField) contactoField.style.display = (modo === 'contacto' || modo === 'presentacion') ? 'block' : 'none';
       if (presField) presField.style.display = modo === 'presentacion' ? 'block' : 'none';
+      if (alojModeField) alojModeField.style.display = modo === 'alojamiento' ? 'block' : 'none';
       if (ssidInput) ssidInput.required = modo === 'wifi';
       if (secSelect) secSelect.required = modo === 'wifi';
       if (pwInput) {
@@ -185,7 +187,9 @@
     function initRowlist(list) {
       var tpl = list.querySelector('[data-row-tpl]');
       var rowsBox = list.querySelector('.rowlist-rows');
-      var marker = list.querySelector('input[type="hidden"][name="' + list.dataset.marker + '"]');
+      // El marker _present lo renderiza el servidor FUERA de .rowlist (hermano
+      // del editor, dentro de .aloj-field): se busca en todo el documento.
+      var marker = document.querySelector('input[type="hidden"][name="' + list.dataset.marker + '"]');
       var host = list.parentNode; // .aloj-field: contiene los seeds del servidor
 
       function syncNames() {
