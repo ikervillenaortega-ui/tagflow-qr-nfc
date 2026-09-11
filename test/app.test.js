@@ -1076,6 +1076,100 @@ test('venta de tarjeta → Alojamiento: el stock sin configurar se convierte en 
   models.deleteBlocksByTag(target.id);
 });
 
+test('ver contraseña guardada: endpoint JSON y re-guardado sin cambios', async () => {
+  models.createUser('pwadmin', bcrypt.hashSync('secret123', 4));
+  const { cookie } = await loginAs('pwadmin', 'secret123');
+  const get = (path) => req(path, { cookie });
+  const post = (path, body) => req(path, { method: 'POST', body, cookie });
+
+  // 1. Crear tag WiFi simple con contraseña
+  const formPage = await get('/admin/tags/nuevo');
+  const csrf = getCsrf(formPage.body);
+  const createRes = await post('/admin/tags', {
+    _csrf: csrf,
+    nombre: 'WiFi Reveal Test',
+    tipo: 'qr',
+    modo: 'wifi',
+    wifi_ssid: 'RedTest',
+    wifi_password: 'ClaveSecreta99',
+    wifi_seguridad: 'WPA',
+    estado: 'activo'
+  });
+  assert.equal(createRes.statusCode, 302);
+  const tagId = createRes.headers.location.split('/').pop();
+
+  // 2. El endpoint devuelve la contraseña descifrada
+  const json = await get(`/admin/tags/${tagId}/passwords.json`);
+  assert.equal(json.statusCode, 200);
+  const data = JSON.parse(json.body);
+  assert.equal(data.wifi, 'ClaveSecreta99');
+  assert.deepEqual(data.aloj, {});
+
+  // 3. Cambiarla a otra y 4. re-guardar con el campo vacío mantiene la última
+  const editPage = await get(`/admin/tags/${tagId}/editar`);
+  const csrf2 = getCsrf(editPage.body);
+  const updRes = await post(`/admin/tags/${tagId}`, {
+    _csrf: csrf2,
+    nombre: 'WiFi Reveal Test',
+    tipo: 'qr',
+    modo: 'wifi',
+    wifi_ssid: 'RedTest',
+    wifi_password: 'Reveal/Change#1',
+    wifi_seguridad: 'WPA',
+    estado: 'activo'
+  });
+  assert.equal(updRes.statusCode, 302);
+  const editPage2 = await get(`/admin/tags/${tagId}/editar`);
+  const csrf2b = getCsrf(editPage2.body);
+  const updRes2 = await post(`/admin/tags/${tagId}`, {
+    _csrf: csrf2b,
+    nombre: 'WiFi Reveal Test',
+    tipo: 'qr',
+    modo: 'wifi',
+    wifi_ssid: 'RedTest',
+    wifi_password: '',
+    wifi_seguridad: 'WPA',
+    estado: 'activo'
+  });
+  assert.equal(updRes2.statusCode, 302);
+  const json2 = JSON.parse((await get(`/admin/tags/${tagId}/passwords.json`)).body);
+  assert.equal(json2.wifi, 'Reveal/Change#1');
+
+  // 5. Un tag de alojamiento expone la contraseña por idioma y aislada del modo WiFi
+  const alojPage = await get('/admin/tags/nuevo?modo=alojamiento');
+  const csrf3 = getCsrf(alojPage.body);
+  const alojRes = await post('/admin/tags', {
+    _csrf: csrf3,
+    nombre: 'Aloj Reveal',
+    tipo: 'qr',
+    modo: 'alojamiento',
+    estado: 'activo',
+    b_es_present: '1',
+    b_es_aloj_wifi_ssid: 'RedAloj',
+    b_es_aloj_wifi_password: 'ClaveAloj77',
+    b_en_present: '1',
+    b_en_aloj_wifi_ssid: 'RedAloj',
+    b_en_aloj_wifi_password: 'Enclave44'
+  });
+  assert.equal(alojRes.statusCode, 302);
+  const alojId = alojRes.headers.location.split('/').pop();
+  const data3 = JSON.parse((await get(`/admin/tags/${alojId}/passwords.json`)).body);
+  assert.equal(data3.wifi, '');
+  assert.equal(data3.aloj.es, 'ClaveAloj77');
+  assert.equal(data3.aloj.en, 'Enclave44');
+
+  // 6. Sin sesión el endpoint no revela nada
+  const anon = await req(`/admin/tags/${tagId}/passwords.json`);
+  assert.equal(anon.statusCode, 302);
+
+  // 7. Limpieza
+  const delPage = await get(`/admin/tags/${tagId}`);
+  const csrf4 = getCsrf(delPage.body);
+  await post(`/admin/tags/${tagId}/eliminar`, { _csrf: csrf4 });
+  const delPage2 = await get(`/admin/tags/${alojId}`);
+  await post(`/admin/tags/${alojId}/eliminar`, { _csrf: getCsrf(delPage2.body) });
+});
+
 test('chip NFC: normalización de UID y lectura de modelo', () => {
   // Los UIDs llegan del móvil con separadores; se normalizan a hex mayúsculas.
   assert.equal(normalizeNfcUid('04:a3:b2:c1:5b:6a:80'), '04A3B2C15B6A80');

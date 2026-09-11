@@ -500,6 +500,76 @@
     document.body.removeChild(ta);
   }
 
+  // ===== «Ver contraseña guardada» (modo WiFi y bloques WiFi del alojamiento) =====
+  // Pide las contraseñas descifradas del tag y rellena el campo del botón
+  // pulsado; «Ocultar» vacía el campo de nuevo. Solo para tags ya creados.
+  (function initPasswordReveal() {
+    var revealBtns = Array.prototype.filter.call(
+      document.querySelectorAll('.pw-reveal'),
+      function (b) { return !b.hidden; }
+    );
+    if (!revealBtns.length) return;
+    var m = /\/admin\/tags\/(\d+)(\/|$|\?)/.exec(window.location.pathname + '?');
+    if (!m) return; // en «Nuevo Tag» aún no hay nada guardado que ver
+    var tagId = m[1];
+    var cache = null;
+
+    function loadData() {
+      return (cache = cache || fetch('/admin/tags/' + tagId + '/passwords.json', { credentials: 'same-origin' }).then(function (r) {
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      }));
+    }
+
+    function passwordFor(btn, data) {
+      var lang = btn.dataset.pwLang;
+      // dataset no admite null: se guarda el string "null"; tratarlo como ausente.
+      if (lang && lang !== 'null' && data.aloj && data.aloj[lang]) return data.aloj[lang];
+      return data.wifi || '';
+    }
+
+    function fillOne(btn) {
+      loadData().then(function (data) {
+        var target = document.querySelector('input[name="' + btn.dataset.pwTarget + '"]');
+        var note = btn.parentNode.querySelector('.pw-reveal-note');
+        var pw = passwordFor(btn, data);
+        if (!pw) {
+          if (note) { note.hidden = false; note.textContent = 'Este campo no tiene contraseña guardada.'; }
+          return;
+        }
+        if (target) target.value = pw;
+        btn.hidden = true;
+        if (note) {
+          note.hidden = false;
+          note.textContent = '✓ Rellenada. Si guardas sin editarla, se mantiene igual.';
+          var undo = document.createElement('button');
+          undo.type = 'button';
+          undo.className = 'btn btn-sm';
+          undo.textContent = 'Ocultar';
+          undo.addEventListener('click', function () {
+            if (target) target.value = '';
+            note.hidden = true;
+            undo.remove();
+            btn.hidden = false;
+          });
+          note.parentNode.insertBefore(undo, note.nextSibling);
+        }
+      }).catch(function () {
+        var note = btn.parentNode.querySelector('.pw-reveal-note');
+        if (note) { note.hidden = false; note.textContent = '✗ No se pudo leer. Recarga e inténtalo de nuevo.'; }
+      });
+    }
+
+    revealBtns.forEach(function (btn) {
+      if (btn.dataset.pwTarget.indexOf('_aloj_wifi_password') !== -1) {
+        btn.dataset.pwLang = btn.dataset.pwTarget.split('_')[1];
+      } else {
+        delete btn.dataset.pwLang;
+      }
+      btn.addEventListener('click', function () { fillOne(btn); });
+    });
+  })();
+
   // ===== Lectura del chip NFC (Web NFC) =====
   // Lee el UID del chip (p. ej. NTAG213). En la página «Identificar NFC"
   // hace búsqueda en vivo y rellena el formulario de asignación; en el

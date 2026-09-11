@@ -9,6 +9,7 @@ const { buildVCard } = require('../contact');
 const { qrPng, qrSvg } = require('../qr');
 const { isValidSlug } = require('../slugs');
 const { circularSvg } = require('../imageUtils');
+const { decryptText } = require('../crypto');
 const { BLOCK_TYPES, LANGUAGES, LANGUAGE_NAMES, validateAlojamientoInput, BLOCK_LABELS } = require('../alojamiento');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -382,6 +383,24 @@ function createAdminRouter({ db, models, config, auth }) {
     const tag = models.getTagByNfcUid(uid);
     if (tag) return res.json({ found: true, uid, tagId: tag.id, nombre: tag.nombre, slug: tag.slug, modo: tag.modo, estado: tag.estado });
     res.json({ found: false, uid });
+  });
+
+  // Contraseñas WiFi guardadas (descifradas) para rellenar el formulario con
+  // un clic: la del modo WiFi simple y las de los bloques WiFi de cada
+  // idioma del alojamiento. Requiere sesión; nunca van a logs ni a la página
+  // pública (allí solo viajan dentro del botón de conexión automática).
+  router.get('/tags/:id/passwords.json', (req, res) => {
+    const tag = models.getTagById(parseId(req.params.id));
+    if (!tag) return res.status(404).json({ error: 'Tag no encontrado' });
+    const out = { wifi: models.decryptWifiPassword(tag), aloj: {} };
+    for (const row of models.listBlocks(tag.id)) {
+      if (row.block_type !== 'wifi') continue;
+      try {
+        const content = JSON.parse(row.content);
+        if (content.password_enc) out.aloj[row.language] = decryptText(content.password_enc, config.wifiSecret);
+      } catch { /* bloque corrupto: se ignora */ }
+    }
+    res.json(out);
   });
 
   router.get('/tags/masivo', (req, res) => {
