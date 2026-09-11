@@ -577,6 +577,8 @@
   (function initNfcReader() {
     if (!('NDEFReader' in window)) return;
     var ndef = null;
+    var abortCtl = null;   // AbortController de la lectura en curso
+    var reading = false;   // hay una sesión de escaneo activa
     var readerBtn = document.getElementById('nfc-read-btn');
     var inlineBtn = document.getElementById('nfc-read-inline');
     var statusEl = document.getElementById('nfc-status');
@@ -643,31 +645,97 @@
         .catch(function () { /* sin búsqueda en vivo */ });
     }
 
+    function setBusy(busy) {
+      if (readerBtn) {
+        readerBtn.disabled = busy;
+        readerBtn.textContent = busy ? '⏹ Detener lectura' : '📡 Leer chip NFC';
+      }
+      if (inlineBtn) inlineBtn.disabled = busy;
+    }
+
+    function stopScan(silent) {
+      if (abortCtl) { try { abortCtl.abort(); } catch (e) { /* ya abortado */ } abortCtl = null; }
+      reading = false;
+      setBusy(false);
+      if (!silent) setStatus(statusEl || inlineStatus, 'Lectura detenida.', false);
+    }
+
     async function readTag() {
+      // Segundo clic mientras escanea: detener (toggle).
+      if (reading) { stopScan(false); return; }
+
+      // NUEVA instancia y NUEVO AbortController en cada intento: reutilizar la
+      // instancia anterior lanzaba InvalidStateError al segundo clic y el
+      // lector parecía «roto» aunque solo estuviera bloqueado.
+      stopScan(true);
+      ndef = new NDEFReader();
+      abortCtl = new AbortController();
+      var statusTarget = statusEl || inlineStatus;
+      setBusy(true); // evita dobles clics durante el prompt de permiso
       try {
-        if (!ndef) ndef = new NDEFReader();
-        await ndef.scan();
-        setStatus(statusEl || inlineStatus, 'Lectura activa: acerca la tarjeta…', false);
+        await ndef.scan({ signal: abortCtl.signal });
+        reading = true;
+        setStatus(statusTarget, 'Lectura activa: acerca la tarjeta… (pulsas de nuevo para detener)', false);
         ndef.onreading = function (event) {
           var uid = uidFromSerial(event.serialNumber);
           if (!uid) {
-            setStatus(statusEl || inlineStatus, 'No se pudo leer el UID. Prueba de acercar la tarjeta de nuevo.', true);
+            setStatus(statusEl || inlineStatus, 'No se pudo leer el UID. Acerca la tarjeta de nuevo, más al centro.', true);
             return;
           }
+          if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) { /* sin soporte */ } }
           handleUid(uid);
         };
         ndef.onreadingerror = function () {
-          setStatus(statusEl || inlineStatus, 'Error de lectura: mantén la tarjeta quieta sobre el lector.', true);
+          setStatus(statusEl || inlineStatus, 'Error de lectura: mantén la tarjeta quieta sobre el lector y sin funda metálica.', true);
         };
       } catch (err) {
+        reading = false;
+        setBusy(false);
+        abortCtl = null;
+        if (err && err.name === 'AbortError') return; // detenido por el usuario
         var msg = 'No se pudo activar el lector NFC';
-        if (err && err.name === 'NotAllowedError') msg = 'Permiso denegado: acepta el permiso NFC para leer la tarjeta.';
-        if (err && err.name === 'NotSupportedError') msg = 'Este dispositivo no soporta Web NFC.';
+        if (err && err.name === 'NotAllowedError') msg = 'Permiso denegado: acepta el permiso NFC (o abre la página fuera de un iframe) e inténtalo otra vez.';
+        else if (err && err.name === 'NotSupportedError') msg = 'Este dispositivo o navegador no soporta Web NFC (solo Chrome/Edge en Android).';
+        else if (err && err.name === 'InvalidStateError') msg = 'El lector quedó bloqueado por un intento anterior; recarga la página y vuelve a pulsar.';
+        else if (err && err.name === 'NotReadableError') msg = 'El lector NFC del dispositivo no está disponible (¿está en uso por otra app?).';
         setStatus(statusEl || inlineStatus, msg + '.', true);
       }
     }
 
     if (readerBtn) readerBtn.addEventListener('click', readTag);
     if (inlineBtn) inlineBtn.addEventListener('click', readTag);
+  })();
+
+  // ===== Diagnóstico cuando NO hay Web NFC =====
+  // Explica el porqué concreto (iPhone, navegador de app, contexto no seguro)
+  // en lugar de un mensaje genérico.
+  (function initNfcSupportNotes() {
+    var box = document.getElementById('nfc-nosupport');
+    if (!box) return;
+    var notes = [];
+    if (!window.isSecureContext) {
+      notes.push('La página no se abrió por HTTPS (o localhost): Web NFC exige conexión segura. Abre la web con https://…');
+    }
+    if (!('NDEFReader' in window)) {
+      var ua = navigator.userAgent || '';
+      var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      var inApp = /FBAN|FBAV|Instagram|Line|WhatsApp|Twitter/.test(ua);
+      if (isIOS) {
+        notes.push('En iPhone ningún navegador permite leer NFC desde la web. Opciones: usa un Android con Chrome, o lee el UID con la app gratuita NFC Tools («OTRAS» → «Datos técnicos») y escríbelo a mano aquí abajo.');
+      } else if (inApp) {
+        notes.push('Estás dentro del navegador de otra app (WhatsApp, Instagram…): abe esta página en Chrome para poder usar el NFC.');
+      } else {
+        notes.push('En ordenador (Windows/Mac/Linux) ningún navegador expone el NFC: lee la tarjeta con un móvil Android + Chrome, o escribe el UID a mano aquí abajo.');
+      }
+    }
+    if (notes.length) {
+      var ul = document.createElement('ul');
+      notes.forEach(function (n) {
+        var li = document.createElement('li');
+        li.textContent = n;
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    }
   })();
 })();
