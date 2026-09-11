@@ -47,7 +47,7 @@
     }
   </style>
 </head>
-<body data-os="<%= os %>" data-has-pw="<%= wifi.seguridad !== 'nopass' ? 'true' : 'false' %>" data-ssid="<%= wifi.ssid %>" data-cred='<%= JSON.stringify(androidCred) %>'>
+<body data-os="<%= os %>" data-has-pw="<%= wifi.seguridad !== 'nopass' ? 'true' : 'false' %>" data-ssid="<%= wifi.ssid %>" data-tag-slug="<%= typeof slug !== 'undefined' ? slug : '' %>">
   <div class="card">
     <div class="icon">📶</div>
     <h1><%= wifi.ssid %></h1>

@@ -6,44 +6,54 @@
   var ssid = body.dataset.ssid || '';
   var hasPw = body.dataset.hasPw === 'true';
 
-  // ===== Alojamiento: conexión WiFi automática desde la página del huésped =====
+  // ===== Conexión WiFi automática desde la página del huésped =====
+  // La contraseña NUNCA viaja en el HTML: se pide al servidor solo cuando el
+  // huésped pulsa «Conectarme a la red», y únicamente si el navegador soporta
+  // la conexión directa (Android/Chrome con la Network API).
   var wifiBlock = document.querySelector('[data-wifi-block]');
-  if (wifiBlock && wifiBlock.dataset.wifi) {
-    var wifiData = null;
-    try { wifiData = JSON.parse(wifiBlock.dataset.wifi); } catch (e) { wifiData = null; }
-    var wConnect = wifiBlock.querySelector('[data-wifi-connect]');
-    var wMsg = wifiBlock.querySelector('[data-wifi-msg]');
-    var cred = null;
-    if (wifiData) {
-      cred = { type: wifiData.security === 'nopass' ? 'open' : (wifiData.security === 'WEP' ? 'wep' : 'wpa2'), ssid: wifiData.ssid };
-      if (wifiData.security !== 'nopass' && wifiData.password) cred.password = wifiData.password;
-    }
+  var connectArea = document.getElementById('connect-area');
+  var slug = (wifiBlock && wifiBlock.dataset.tagSlug) || body.dataset.tagSlug || '';
+  var wifiConnectBtn = (wifiBlock && wifiBlock.querySelector('[data-wifi-connect]')) || (connectArea && connectArea.querySelector('#connect-btn'));
+  var wifiMsgEl = (wifiBlock && wifiBlock.querySelector('[data-wifi-msg]')) || (connectArea && connectArea.querySelector('#connect-msg'));
+  if (wifiConnectBtn && slug) {
     var wm = navigator.wifi;
-    var canConnect = cred && wm && typeof wm.getCcms === 'function' && typeof wm.addCcm === 'function';
-    if (canConnect && wConnect && wMsg) {
-      wConnect.hidden = false;
-      wConnect.addEventListener('click', function () {
-        wMsg.textContent = 'Abriendo la conexión…';
-        wMsg.className = 'wifi-msg busy';
-        wm.getCcms().then(function (list) {
-          var existing = null;
-          for (var i = 0; list && i < list.length; i++) {
-            if (list[i] && list[i].ssid === cred.ssid) existing = list[i];
-          }
-          var op = existing ? wm.addCcm(cred, existing.id) : wm.addCcm(cred);
-          return Promise.resolve(op).then(function () {
-            wMsg.textContent = '✓ Red guardada. Si no te has conectado ya, elígela en Ajustes → WiFi.';
-            wMsg.className = 'wifi-msg ok';
+    var canConnect = wm && typeof wm.getCcms === 'function' && typeof wm.addCcm === 'function';
+    if (canConnect) {
+      wifiConnectBtn.hidden = false;
+      wifiConnectBtn.addEventListener('click', function () {
+        if (wifiMsgEl) {
+          wifiMsgEl.textContent = 'Abriendo la conexión…';
+          wifiMsgEl.className = wifiBlock ? 'wifi-msg busy' : 'connect-msg busy';
+        }
+        fetch('/t/' + encodeURIComponent(slug) + '/credencial.json', { credentials: 'omit' })
+          .then(function (r) { if (!r.ok) throw new Error('sin credencial'); return r.json(); })
+          .then(function (cred) {
+            if (!cred || !cred.ssid) throw new Error('sin credencial');
+            return wm.getCcms().then(function (list) {
+              var existing = null;
+              for (var i = 0; list && i < list.length; i++) {
+                if (list[i] && list[i].ssid === cred.ssid) existing = list[i];
+              }
+              var op = existing ? wm.addCcm(cred, existing.id) : wm.addCcm(cred);
+              return Promise.resolve(op);
+            });
+          })
+          .then(function () {
+            if (wifiMsgEl) {
+              wifiMsgEl.textContent = '✓ Red guardada. Si no te has conectado ya, elígela en Ajustes → WiFi.';
+              wifiMsgEl.className = wifiBlock ? 'wifi-msg ok' : 'connect-msg ok';
+            }
+          })
+          .catch(function (err) {
+            if (wifiMsgEl) {
+              if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+                wifiMsgEl.textContent = 'Conexión cancelada. Da permiso al navegador y vuelve a intentarlo.';
+              } else {
+                wifiMsgEl.textContent = 'No se pudo completar la conexión: sigue los pasos de abajo.';
+              }
+              wifiMsgEl.className = wifiBlock ? 'wifi-msg err' : 'connect-msg err';
+            }
           });
-        }).catch(function (err) {
-          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-            wMsg.textContent = 'Conexión cancelada. Da permiso al navegador y vuelve a intentarlo.';
-            wMsg.className = 'wifi-msg err';
-          } else {
-            wMsg.textContent = 'No se pudo completar la conexión: sigue los pasos de abajo.';
-            wMsg.className = 'wifi-msg err';
-          }
-        });
       });
     }
   }
@@ -69,48 +79,6 @@
         '<li>Introduce la contraseña que se muestra arriba.</li></ol>';
     }
     steps.innerHTML = html;
-  }
-
-  // Conexión directa (Android + Chrome): la Credential Management API abre el
-  // diálogo nativo del sistema para unirse a la red, igual que al escanear un
-  // QR de WiFi con la cámara. En otros sistemas el botón no se muestra.
-  var connectArea = document.getElementById('connect-area');
-  var connectBtn = document.getElementById('connect-btn');
-  var connectMsg = document.getElementById('connect-msg');
-  if (connectArea && connectBtn && connectMsg && os === 'android') {
-    var cred = null;
-    try { cred = JSON.parse(body.dataset.cred || 'null'); } catch (e) { cred = null; }
-    var wm = navigator.wifi;
-    var canConnect = cred && wm && typeof wm.getCcms === 'function' && typeof wm.addCcm === 'function';
-    if (canConnect) {
-      connectArea.hidden = false;
-      connectBtn.addEventListener('click', function () {
-        setMsg('Abriendo la conexión…', 'busy');
-        wm.getCcms().then(function (list) {
-          var i, existing = null;
-          for (i = 0; list && i < list.length; i++) {
-            if (list[i] && list[i].ssid === cred.ssid) existing = list[i];
-          }
-          var op = existing ? wm.addCcm(cred, existing.id) : wm.addCcm(cred);
-          return Promise.resolve(op).then(function () {
-            setMsg('✓ Red guardada. Si no te has conectado ya, elígela en Ajustes → WiFi.', 'ok');
-          });
-        }).catch(function (err) {
-          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-            setMsg('Conexión cancelada. Comprueba que has dado permiso y vuelve a intentarlo.', 'err');
-          } else if (err && err.name === 'NotSupportedError') {
-            setMsg('Este móvil no soporta la conexión directa. Sigue los pasos de abajo.', 'err');
-          } else {
-            setMsg('No se pudo completar la conexión. Sigue los pasos de abajo.', 'err');
-          }
-        });
-      });
-    }
-  }
-
-  function setMsg(text, cls) {
-    connectMsg.textContent = text;
-    connectMsg.className = 'connect-msg' + (cls ? ' ' + cls : '');
   }
 
   // Copiar la contraseña al portapapeles.

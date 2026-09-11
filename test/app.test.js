@@ -207,11 +207,17 @@ test('flujo completo: login → crear tag URL → escaneo → editar a WiFi → 
   // Las instrucciones adaptadas al SO se generan en el cliente (public.js) a
   // partir de data-os; el servidor marca el sistema operativo detectado.
   assert.match(wifiPage.body, /data-os="ios"/);
-  // Botón de conexión directa y credencial para Android (Chrome): al pulsar,
-  // el sistema abre su diálogo nativo para unirse a la red.
+  // Botón de conexión directa (Android/Chrome): la credencial NO viaja en el
+  // HTML; se pide al servidor solo al pulsar el botón.
   assert.match(wifiPage.body, /Conectar a la red/);
-  assert.match(wifiPage.body, /data-cred='/);
-  assert.match(wifiPage.body, /type&#34;:&#34;wpa2&#34;/);
+  assert.match(wifiPage.body, /data-tag-slug=/);
+  assert.ok(!wifiPage.body.includes('data-cred='), 'la credencial no viaja oculta en el HTML');
+  assert.ok(!/data-[a-z-]+=.'[^']*password/i.test(wifiPage.body), 'ningún atributo HTML lleva la contraseña');
+  const credRes = await req(`/t/${tag.slug}/credencial.json`);
+  assert.equal(credRes.statusCode, 200);
+  const credJson = JSON.parse(credRes.body);
+  assert.equal(credJson.ssid, 'Red Restaurante');
+  assert.equal(credJson.password, 'clave-segura-123');
   assert.match(wifiPage.body, /Red Restaurante/);
   assert.equal(models.getTagById(id).escaneos, 2);
 
@@ -900,10 +906,17 @@ test('módulo Alojamiento: bloques multi-idioma, WiFi cifrado, despedida y dupli
   assert.match(pubEs.body, /g\.page\/r\/resena-es/);
   assert.match(pubEs.body, /data-wifi-connect/);
   // La contraseña se muestra al huésped en la tarjeta de credenciales
-  // (input readonly + botón Copiar) para pegarla en Ajustes → WiFi.
+  // (input readonly + botón Copiar) para pegarla en Ajustes → WiFi. Ningún
+  // atributo HTML oculto la lleva: el botón de conexión la pide al servidor.
   assert.match(pubEs.body, /value="wifi-seguro-99"/);
   assert.match(pubEs.body, /data-copy-val="wifi-seguro-99"/);
   assert.match(pubEs.body, /data-copy-val="Casa2B"/);
+  assert.ok(!pubEs.body.includes('data-wifi='), 'sin atributo data-wifi con la contraseña');
+  const pubCred = await req(`/t/${tag.slug}/credencial.json`);
+  assert.equal(pubCred.statusCode, 200);
+  const pubCredJson = JSON.parse(pubCred.body);
+  assert.equal(pubCredJson.ssid, 'Casa2B');
+  assert.equal(pubCredJson.password, 'wifi-seguro-99');
   assert.ok(!pubEs.body.includes('Casa2Bwifi'), 'el SSID no va pegado a la contraseña');
 
   // 4. Huésped inglés: su acceso y reseña, el resto en español (fallback)

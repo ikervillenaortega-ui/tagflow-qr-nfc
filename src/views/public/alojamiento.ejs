@@ -118,22 +118,24 @@
       <% continue; } %>
 
       <% if (b.type === 'wifi') { %>
-      <section class="block" data-wifi-block data-wifi='<%= JSON.stringify({ ssid: b.ssid, password: b.password, security: b.security }) %>' data-os-steps='<%= JSON.stringify(T.wifiStepsAndroid) %>'>
+      <section class="block" data-wifi-block data-tag-slug="<%= typeof slug !== 'undefined' ? slug : '' %>" data-os-steps='<%= JSON.stringify(T.wifiStepsAndroid) %>'>
         <h2 class="block-title"><span class="ico">📶</span><%= T.wifi %></h2>
         <div class="wifi-ssid"><%= b.ssid %></div>
+        <button type="button" class="wifi-connect" data-wifi-connect hidden><%= T.wifiCta %></button>
         <div class="wifi-cred" data-wifi-cred<% if (b.security === 'nopass') { %> hidden<% } %>>
           <div class="wifi-cred-row">
             <span class="wifi-cred-label"><%= T.wifiNet %></span>
             <input class="wifi-cred-val" type="text" readonly value="<%= b.ssid %>" data-copy-val="<%= b.ssid %>" aria-label="<%= T.wifiNet %>">
             <button type="button" class="wifi-copy" data-copy-val="<%= b.ssid %>"><%= T.wifiCopy %></button>
           </div>
+          <% if (b.security !== 'nopass') { %>
           <div class="wifi-cred-row">
             <span class="wifi-cred-label"><%= T.wifiPass %></span>
             <input class="wifi-cred-val" type="text" readonly value="<%= b.password %>" data-copy-val="<%= b.password %>" aria-label="<%= T.wifiPass %>">
             <button type="button" class="wifi-copy" data-copy-val="<%= b.password %>"><%= T.wifiCopy %></button>
           </div>
+          <% } %>
         </div>
-        <button type="button" class="wifi-connect" data-wifi-connect hidden><%= T.wifiCta %></button>
         <p class="wifi-msg" data-wifi-msg></p>
         <div class="wifi-steps">
           <h3><%= T.wifiSteps %></h3>

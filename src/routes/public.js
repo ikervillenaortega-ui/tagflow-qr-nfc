@@ -5,6 +5,7 @@ const { ipToLocation } = require('../geo');
 const { buildAndroidWifiCredential } = require('../wifi');
 const { buildVCard } = require('../contact');
 const { buildGuestView } = require('../alojamiento');
+const { decryptText } = require('../crypto');
 
 function createPublicRouter({ db, models, config }) {
   const router = express.Router();
@@ -70,8 +71,8 @@ function createPublicRouter({ db, models, config }) {
       return res.render('public/wifi', {
         title: `Conectarse a ${wifi.ssid}`,
         nombre: tag.nombre,
+        slug: tag.slug,
         wifi,
-        androidCred: buildAndroidWifiCredential(wifi),
         os: detectOS(req.get('user-agent'))
       });
     }
@@ -86,6 +87,7 @@ function createPublicRouter({ db, models, config }) {
       return res.render('public/alojamiento', {
         title: `${tag.nombre} · Información de tu estancia`,
         nombre: tag.nombre,
+        slug: tag.slug,
         view,
         despedida: tag.modoDespedida,
         os: detectOS(req.get('user-agent'))
@@ -149,6 +151,42 @@ function createPublicRouter({ db, models, config }) {
     res.set('Content-Type', 'text/vcard; charset=utf-8');
     res.set('Content-Disposition', `attachment; filename="contacto-${tag.slug}.vcf"`);
     res.send(vcard);
+  });
+
+  // Credencial WiFi para el botón «Conectarme a la red» de las páginas
+  // públicas. La contraseña NUNCA viaja en el HTML de la página (ni siquiera
+  // cifrada): solo se entrega aquí, descifrada, en el momento en que el
+  // huésped pulsa el botón de conexión.
+  router.get('/t/:slug/credencial.json', (req, res) => {
+    const tag = models.getTagBySlug(String(req.params.slug));
+    if (!tag || tag.estado !== 'activo') return res.status(404).json({ error: 'no-disponible' });
+
+    let cred = null;
+    if (tag.modo === 'wifi') {
+      cred = {
+        type: tag.wifiSeguridad === 'nopass' ? 'open' : (tag.wifiSeguridad === 'WEP' ? 'wep' : 'wpa2'),
+        ssid: tag.wifiSsid || '',
+        password: tag.wifiPasswordEnc ? models.decryptWifiPassword(tag) : ''
+      };
+    } else if (tag.modo === 'alojamiento') {
+      const view = buildGuestView({
+        blockRows: models.listBlocks(tag.id),
+        acceptLanguage: req.get('accept-language'),
+        defaultLanguage: tag.alojIdioma,
+        secret: config.wifiSecret
+      });
+      const wifi = view.blocks.find((b) => b.type === 'wifi');
+      if (wifi) {
+        cred = {
+          type: wifi.security === 'nopass' ? 'open' : (wifi.security === 'WEP' ? 'wep' : 'wpa2'),
+          ssid: wifi.ssid,
+          password: wifi.password || ''
+        };
+      }
+    }
+    if (!cred || !cred.ssid) return res.status(404).json({ error: 'sin-wifi' });
+    res.set('Cache-Control', 'no-store');
+    res.json(cred);
   });
 
   return router;
