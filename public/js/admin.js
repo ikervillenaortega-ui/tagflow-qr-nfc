@@ -574,11 +574,76 @@
   // Lee el UID del chip (p. ej. NTAG213). En la página «Identificar NFC"
   // hace búsqueda en vivo y rellena el formulario de asignación; en el
   // formulario de tag rellena el campo UID directamente.
+  // ===== NFC (Web NFC) · núcleo compartido =====
+  // Cada operación usa una instancia NUEVA de NDEFReader y su propio
+  // AbortController: reutilizar la instancia anterior lanza InvalidStateError
+  // y deja el lector «bloqueado» tras el primer intento.
+  function nfcCore() {
+    if (!('NDEFReader' in window)) return null;
+    var ctl = null;
+    function fresh() {
+      if (ctl) { try { ctl.abort(); } catch (e) { /* ya abortado */ } }
+      ctl = new AbortController();
+      return new NDEFReader();
+    }
+    return {
+      read: function (onReading, onError) {
+        var r = fresh();
+        var p = r.scan({ signal: ctl.signal });
+        r.onreading = onReading;
+        r.onreadingerror = onError || function () {};
+        return p;
+      },
+      write: function (records) {
+        var r = fresh();
+        return r.scan({ signal: ctl.signal }).then(function () {
+          return r.write({ records: records });
+        });
+      },
+      erase: function () {
+        var r = fresh();
+        return r.scan({ signal: ctl.signal }).then(function () {
+          return r.write({ records: [{ recordType: 'empty' }] });
+        });
+      },
+      stop: function () { if (ctl) { try { ctl.abort(); } catch (e) { /* noop */ } ctl = null; } }
+    };
+  }
+
+  // Mensaje por causa real; null = cancelado por el usuario (no es error).
+  function nfcErrorMessage(err) {
+    if (!err) return 'Error desconocido.';
+    if (err.name === 'AbortError') return null;
+    if (err.name === 'NotAllowedError') return 'Permiso denegado: acepta el permiso NFC (y abre la página fuera de un iframe) e inténtalo de nuevo.';
+    if (err.name === 'NotSupportedError') return 'Este dispositivo o navegador no soporta Web NFC (solo Chrome/Edge en Android).';
+    if (err.name === 'InvalidStateError') return 'El lector quedó bloqueado por un intento anterior; recarga la página y vuelve a pulsar.';
+    if (err.name === 'NotReadableError') return 'El lector NFC no está disponible (¿lo está usando otra app?).';
+    return 'Error: ' + (err.message || err.name || err);
+  }
+
+  function uidFromSerial(serial) {
+    return String(serial || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  }
+
+  // NTAG213: UID de 7 bytes → 14 dígitos hex. El modelo se deduce del tamaño
+  // del UID (solo orientativo: los clones pueden variar).
+  function modelHint(uid) {
+    if (uid.length === 8) return 'MIFARE Classic / NTAG probable';
+    if (uid.length === 14) return 'NTAG213 (o compatible, UID de 7 bytes)';
+    if (uid.length === 16) return 'NTAG216 / UID de 8 bytes';
+    return 'Chip NTAG compatible';
+  }
+
+  function nfcSetStatus(el, msg, isError) {
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.toggle('nfc-error', !!isError);
+  }
+
+  // Formulario de tag + detalle: lectura inline y escritura de payloads.
   (function initNfcReader() {
     if (!('NDEFReader' in window)) return;
-    var ndef = null;
-    var abortCtl = null;   // AbortController de la lectura en curso
-    var reading = false;   // hay una sesión de escaneo activa
+    var core = nfcCore();
     var readerBtn = document.getElementById('nfc-read-btn');
     var inlineBtn = document.getElementById('nfc-read-inline');
     var statusEl = document.getElementById('nfc-status');
@@ -592,24 +657,7 @@
     }
     if (inlineBtn) inlineBtn.hidden = false;
 
-    function setStatus(el, msg, isError) {
-      if (!el) return;
-      el.textContent = msg;
-      el.classList.toggle('nfc-error', !!isError);
-    }
-
-    function uidFromSerial(serial) {
-      return String(serial || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
-    }
-
-    // NTAG213: UID de 7 bytes → 14 dígitos hex. El modelo se deduce del tamaño
-    // del UID (solo orientativo: los clones pueden variar).
-    function modelHint(uid) {
-      if (uid.length === 8) return 'MIFARE Classic / NTAG probable';
-      if (uid.length === 14) return 'NTAG213 (o compatible, UID de 7 bytes)';
-      if (uid.length === 16) return 'NTAG216 / UID de 8 bytes';
-      return 'Chip NTAG compatible';
-    }
+    var scanning = false;
 
     function handleUid(uid) {
       var idInput = document.getElementById('nfc-uid-input');
@@ -620,7 +668,7 @@
 
       if (formField) {
         formField.value = uid;
-        setStatus(inlineStatus, 'Chip leído: ' + uid + ' ✓', false);
+        nfcSetStatus(inlineStatus, 'Chip leído: ' + uid + ' ✓', false);
       }
       if (!idInput) return; // estamos en el formulario de tag: ya está
 
@@ -628,7 +676,7 @@
       if (uidDisplay) uidDisplay.textContent = uid;
       if (modelHintEl) modelHintEl.textContent = modelHint(uid);
       if (resultBox) resultBox.hidden = false;
-      setStatus(statusEl, 'Chip leído correctamente.', false);
+      nfcSetStatus(statusEl, 'Chip leído correctamente.', false);
 
       // Búsqueda en vivo: ¿ya pertenece a una ficha?
       fetch('/admin/nfc/buscar.json?uid=' + encodeURIComponent(uid), { credentials: 'same-origin' })
@@ -645,60 +693,36 @@
         .catch(function () { /* sin búsqueda en vivo */ });
     }
 
-    function setBusy(busy) {
-      if (readerBtn) {
-        readerBtn.disabled = busy;
-        readerBtn.textContent = busy ? '⏹ Detener lectura' : '📡 Leer chip NFC';
+    function readTag() {
+      if (scanning) {
+        core.stop();
+        scanning = false;
+        nfcSetStatus(statusEl || inlineStatus, 'Lectura detenida.', false);
+        return;
       }
-      if (inlineBtn) inlineBtn.disabled = busy;
-    }
-
-    function stopScan(silent) {
-      if (abortCtl) { try { abortCtl.abort(); } catch (e) { /* ya abortado */ } abortCtl = null; }
-      reading = false;
-      setBusy(false);
-      if (!silent) setStatus(statusEl || inlineStatus, 'Lectura detenida.', false);
-    }
-
-    async function readTag() {
-      // Segundo clic mientras escanea: detener (toggle).
-      if (reading) { stopScan(false); return; }
-
-      // NUEVA instancia y NUEVO AbortController en cada intento: reutilizar la
-      // instancia anterior lanzaba InvalidStateError al segundo clic y el
-      // lector parecía «roto» aunque solo estuviera bloqueado.
-      stopScan(true);
-      ndef = new NDEFReader();
-      abortCtl = new AbortController();
-      var statusTarget = statusEl || inlineStatus;
-      setBusy(true); // evita dobles clics durante el prompt de permiso
+      var target = statusEl || inlineStatus;
       try {
-        await ndef.scan({ signal: abortCtl.signal });
-        reading = true;
-        setStatus(statusTarget, 'Lectura activa: acerca la tarjeta… (pulsas de nuevo para detener)', false);
-        ndef.onreading = function (event) {
+        core.read(function (event) {
           var uid = uidFromSerial(event.serialNumber);
+          scanning = false;
           if (!uid) {
-            setStatus(statusEl || inlineStatus, 'No se pudo leer el UID. Acerca la tarjeta de nuevo, más al centro.', true);
+            nfcSetStatus(target, 'No se pudo leer el UID. Acerca la tarjeta de nuevo, más al centro.', true);
             return;
           }
           if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) { /* sin soporte */ } }
           handleUid(uid);
-        };
-        ndef.onreadingerror = function () {
-          setStatus(statusEl || inlineStatus, 'Error de lectura: mantén la tarjeta quieta sobre el lector y sin funda metálica.', true);
-        };
+        }, function () {
+          nfcSetStatus(target, 'Error de lectura: mantén la tarjeta quieta sobre el lector y sin funda metálica.', true);
+        }).then(function () {
+          scanning = true;
+          nfcSetStatus(target, 'Lectura activa: acerca la tarjeta… (pulsas de nuevo para detener)', false);
+        }).catch(function (err) {
+          var m = nfcErrorMessage(err);
+          if (m) nfcSetStatus(target, m, true);
+        });
       } catch (err) {
-        reading = false;
-        setBusy(false);
-        abortCtl = null;
-        if (err && err.name === 'AbortError') return; // detenido por el usuario
-        var msg = 'No se pudo activar el lector NFC';
-        if (err && err.name === 'NotAllowedError') msg = 'Permiso denegado: acepta el permiso NFC (o abre la página fuera de un iframe) e inténtalo otra vez.';
-        else if (err && err.name === 'NotSupportedError') msg = 'Este dispositivo o navegador no soporta Web NFC (solo Chrome/Edge en Android).';
-        else if (err && err.name === 'InvalidStateError') msg = 'El lector quedó bloqueado por un intento anterior; recarga la página y vuelve a pulsar.';
-        else if (err && err.name === 'NotReadableError') msg = 'El lector NFC del dispositivo no está disponible (¿está en uso por otra app?).';
-        setStatus(statusEl || inlineStatus, msg + '.', true);
+        var m2 = nfcErrorMessage(err);
+        if (m2) nfcSetStatus(target, m2, true);
       }
     }
 
@@ -706,12 +730,163 @@
     if (inlineBtn) inlineBtn.addEventListener('click', readTag);
   })();
 
+  // ===== Página «Chip NFC»: modo NFC Tools (leer / escribir / borrar) =====
+  (function initNfxt() {
+    var root = document.querySelector('.nfxt');
+    if (!root) return;
+    var scanBtn = document.getElementById('nfxt-scan');
+    var scanStatus = document.getElementById('nfxt-status');
+    var resultBox = document.getElementById('nfxt-result');
+    var writeBtn = document.getElementById('nfxt-write');
+    var eraseBtn = document.getElementById('nfxt-erase');
+    var writeStatus = document.getElementById('nfxt-write-status');
+
+    // Pestañas Leer / Escribir.
+    root.querySelectorAll('.nfxt-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        root.querySelectorAll('.nfxt-tab').forEach(function (t) { t.classList.toggle('active', t === tab); });
+        root.querySelectorAll('.nfxt-panel').forEach(function (p) { p.hidden = p.dataset.nfxtPanel !== tab.dataset.nfxtTab; });
+      });
+    });
+
+    function setIdleScan() {
+      scanBtn.classList.remove('scanning');
+      var t = scanBtn.querySelector('.nfxt-scantext');
+      if (t) t.textContent = 'LEER';
+    }
+
+    function handleUid(uid) {
+      var uidEl = document.getElementById('nfxt-uid');
+      var modelEl = document.getElementById('nfxt-model');
+      var uidInput = document.getElementById('nfxt-uid-input');
+      if (uidEl) uidEl.textContent = uid;
+      if (modelEl) modelEl.textContent = modelHint(uid);
+      if (uidInput) uidInput.value = uid;
+      if (resultBox) resultBox.hidden = false;
+      setIdleScan();
+      nfcSetStatus(scanStatus, '✓ Chip leído: ' + uid, false);
+      fetch('/admin/nfc/buscar.json?uid=' + encodeURIComponent(uid), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var known = document.getElementById('nfxt-known');
+          if (!known) return;
+          if (data && data.found) {
+            known.innerHTML = 'Asignado a <a href="/admin/tags/' + data.tagId + '"><strong>' + data.nombre + '</strong></a> — puedes reasignarlo abajo.';
+          } else {
+            known.textContent = 'Chip nuevo: todavía sin asignar a ninguna ficha.';
+          }
+        })
+        .catch(function () { /* sin búsqueda en vivo */ });
+    }
+
+    if (!('NDEFReader' in window)) {
+      scanBtn.disabled = true;
+      writeBtn.disabled = true;
+      eraseBtn.disabled = true;
+      nfcSetStatus(scanStatus, 'Este navegador no soporta Web NFC: usa la app NFC Tools con la guía de abajo.', true);
+      return; // el recuadro de alternativas lo rellena initNfcSupportNotes
+    }
+
+    var core = nfcCore();
+    var scanning = false;
+
+    scanBtn.addEventListener('click', function () {
+      if (scanning) {
+        core.stop();
+        scanning = false;
+        setIdleScan();
+        nfcSetStatus(scanStatus, 'Lectura detenida.', false);
+        return;
+      }
+      try {
+        core.read(function (event) {
+          var uid = uidFromSerial(event.serialNumber);
+          scanning = false;
+          if (!uid) {
+            nfcSetStatus(scanStatus, 'No se pudo leer el UID: acerca la tarjeta de nuevo, más al centro.', true);
+            return;
+          }
+          if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) { /* sin soporte */ } }
+          handleUid(uid);
+        }, function () {
+          nfcSetStatus(scanStatus, 'Error de lectura: mantén la tarjeta quieta sobre el lector.', true);
+        }).then(function () {
+          scanning = true;
+          scanBtn.classList.add('scanning');
+          var t = scanBtn.querySelector('.nfxt-scantext');
+          if (t) t.textContent = 'DETENER';
+          nfcSetStatus(scanStatus, 'Lectura activa: acerca la tarjeta a la parte trasera del móvil…', false);
+        }).catch(function (err) {
+          setIdleScan();
+          var m = nfcErrorMessage(err);
+          if (m) nfcSetStatus(scanStatus, m, true);
+        });
+      } catch (err) {
+        var m2 = nfcErrorMessage(err);
+        if (m2) nfcSetStatus(scanStatus, m2, true);
+      }
+    });
+
+    function chosenUrl() {
+      var sel = document.getElementById('nfxt-write-tag');
+      var custom = document.getElementById('nfxt-write-url');
+      if (custom && custom.value.trim()) return custom.value.trim();
+      if (sel && sel.value) {
+        var opt = sel.options[sel.selectedIndex];
+        return (opt && opt.dataset.url) || '';
+      }
+      return '';
+    }
+
+    writeBtn.addEventListener('click', function () {
+      var url = chosenUrl();
+      if (!/^https?:\/\//i.test(url)) {
+        nfcSetStatus(writeStatus, 'Elige una ficha o escribe una URL válida (https://…).', true);
+        return;
+      }
+      nfcSetStatus(writeStatus, 'Acerca la tarjeta para grabar: ' + url, false);
+      core.write([{ recordType: 'url', data: url }])
+        .then(function () {
+          if (navigator.vibrate) { try { navigator.vibrate(120); } catch (e) { /* sin soporte */ } }
+          nfcSetStatus(writeStatus, '✓ URL grabada en el chip: ' + url, false);
+        })
+        .catch(function (err) {
+          var m = err && err.name === 'AbortError' ? null
+            : (err && err.name === 'NotReadableError'
+              ? 'No se pudo grabar: tarjeta retirada demasiado pronto, llena o protegida contra escritura.'
+              : nfcErrorMessage(err));
+          if (m) nfcSetStatus(writeStatus, m, true);
+        });
+    });
+
+    eraseBtn.addEventListener('click', function () {
+      nfcSetStatus(writeStatus, 'Acerca la tarjeta para borrar su contenido…', false);
+      core.erase()
+        .then(function () {
+          nfcSetStatus(writeStatus, '✓ Chip borrado (contenido vacío). El UID no cambia y la ficha sigue asignada.', false);
+        })
+        .catch(function (err) {
+          var m = err && err.name === 'AbortError' ? null : nfcErrorMessage(err);
+          if (m) nfcSetStatus(writeStatus, m, true);
+        });
+    });
+  })();
+
   // ===== Diagnóstico cuando NO hay Web NFC =====
   // Explica el porqué concreto (iPhone, navegador de app, contexto no seguro)
-  // en lugar de un mensaje genérico.
+  // en lugar de un mensaje genérico. Rellena tanto el recuadro antiguo
+  // (nfc-nosupport) como el de la página NFC Tools (nfxt-nosupport).
   (function initNfcSupportNotes() {
-    var box = document.getElementById('nfc-nosupport');
+    var box = document.getElementById('nfc-nosupport') || document.getElementById('nfxt-nosupport');
     if (!box) return;
+    var show = function (b) { if (b) b.hidden = false; };
+    if (document.getElementById('nfxt-nosupport')) {
+      // En la página NFC Tools el recuadro solo aparece si no hay soporte.
+      if ('NDEFReader' in window) return;
+      show(document.getElementById('nfxt-nosupport'));
+    } else if ('NDEFReader' in window) {
+      return;
+    }
     var notes = [];
     if (!window.isSecureContext) {
       notes.push('La página no se abrió por HTTPS (o localhost): Web NFC exige conexión segura. Abre la web con https://…');
@@ -723,7 +898,7 @@
       if (isIOS) {
         notes.push('En iPhone ningún navegador permite leer NFC desde la web. Opciones: usa un Android con Chrome, o lee el UID con la app gratuita NFC Tools («OTRAS» → «Datos técnicos») y escríbelo a mano aquí abajo.');
       } else if (inApp) {
-        notes.push('Estás dentro del navegador de otra app (WhatsApp, Instagram…): abe esta página en Chrome para poder usar el NFC.');
+        notes.push('Estás dentro del navegador de otra app (WhatsApp, Instagram…): abre esta página en Chrome para poder usar el NFC.');
       } else {
         notes.push('En ordenador (Windows/Mac/Linux) ningún navegador expone el NFC: lee la tarjeta con un móvil Android + Chrome, o escribe el UID a mano aquí abajo.');
       }

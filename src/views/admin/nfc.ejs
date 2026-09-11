@@ -1,75 +1,122 @@
 <%- include('partials/header', { active: 'nfc' }) %>
 
-<section class="panel">
-  <h1>Identificar chip NFC</h1>
+<section class="panel nfxt">
+  <h1>Chip NFC · NTAG213</h1>
   <p class="muted">
-    Cada tarjeta física lleva un chip (p. ej. <strong>NTAG213</strong>) con un <strong>UID único</strong> grabado de fábrica.
-    Lee el chip con el móvil y lo asocias a su ficha: así siempre sabrás qué tarjeta estás configurando.
+    Lee y escribe las tarjetas como en la app <strong>NFC Tools</strong>: primero <em>lee</em> el chip para
+    saber qué tarjeta es (su UID es único de fábrica) y después <em>escribe</em> en ella la URL de su ficha.
   </p>
 
-  <div class="nfc-read-box">
-    <h2>1 · Lee el chip</h2>
-    <div id="nfc-web" hidden>
-      <button type="button" class="btn btn-primary" id="nfc-read-btn">📡 Leer chip NFC</button>
-      <p class="muted">Acerca la tarjeta a la parte trasera del móvil y mantenla quieta un segundo.</p>
-    </div>
-    <div id="nfc-nosupport">
-      <p class="muted">
-        Este navegador no soporta lectura NFC (Web NFC solo está disponible en Chrome/Edge para Android).
-        En el móvil: abre esta misma página con Chrome y pulsa «Leer chip NFC».
-      </p>
-    </div>
-    <p class="nfc-status" id="nfc-status">Esperando lectura…</p>
+  <div class="nfxt-tabs" role="tablist">
+    <button type="button" class="nfxt-tab active" data-nfxt-tab="leer" role="tab">📡 Leer</button>
+    <button type="button" class="nfxt-tab" data-nfxt-tab="escribir" role="tab">✍️ Escribir</button>
   </div>
 
-  <div class="nfc-result" id="nfc-result" hidden>
-    <h2>2 · Chip leído</h2>
-    <dl class="def-grid">
-      <dt>UID del chip</dt>
-      <dd><code class="code-block" id="nfc-uid-display"></code></dd>
-      <dt>Modelo probable</dt>
-      <dd id="nfc-model-hint">—</dd>
-      <dt>Estado en el panel</dt>
-      <dd id="nfc-known">—</dd>
-    </dl>
-    <form method="post" action="/admin/nfc" class="nfc-assign">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="uid" id="nfc-uid-input" value="">
-      <label>Asignar a la tarjeta
-        <select name="tag_id" required>
-          <option value="" disabled selected>Elige la ficha…</option>
-          <% tags.forEach((t) => { %>
-            <option value="<%= t.id %>"><%= t.nombre %> · /t/<%= t.slug %><%= t.modo === 'desactivado' ? ' (sin configurar)' : '' %></option>
-          <% }) %>
-        </select>
-      </label>
-      <label>Modelo del chip
-        <input type="text" name="modelo" maxlength="40" placeholder="NTAG213">
-      </label>
-      <button type="submit" class="btn btn-primary">Guardar chip en la tarjeta</button>
-    </form>
+  <!-- ============ LEER ============ -->
+  <div class="nfxt-panel" data-nfxt-panel="leer">
+    <div class="nfxt-scanwrap">
+      <button type="button" class="nfxt-scanbtn" id="nfxt-scan" aria-label="Leer chip NFC">
+        <span class="nfxt-scanicon">📡</span>
+        <span class="nfxt-scantext">LEER</span>
+      </button>
+      <p class="nfxt-status" id="nfxt-status">Pulsa LEER y acerca la tarjeta a la parte trasera del móvil.</p>
+    </div>
+
+    <div class="nfxt-result" id="nfxt-result" hidden>
+      <h2>Chip leído</h2>
+      <dl class="def-grid">
+        <dt>UID del chip</dt>
+        <dd><code class="code-block" id="nfxt-uid">—</code> <button type="button" class="btn btn-sm" data-copy="#nfxt-uid">Copiar</button></dd>
+        <dt>Modelo probable</dt>
+        <dd id="nfxt-model">—</dd>
+        <dt>Estado en el panel</dt>
+        <dd id="nfxt-known">—</dd>
+      </dl>
+      <form method="post" action="/admin/nfc" class="nfc-assign">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="uid" id="nfxt-uid-input" value="">
+        <label>Asignar a la tarjeta
+          <select name="tag_id" required>
+            <option value="" disabled selected>Elige la ficha…</option>
+            <% tags.forEach((t) => { %>
+              <option value="<%= t.id %>"><%= t.nombre %> · /t/<%= t.slug %><%= t.modo === 'desactivado' ? ' (sin configurar)' : '' %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>Modelo del chip
+          <input type="text" name="modelo" maxlength="40" placeholder="NTAG213">
+        </label>
+        <button type="submit" class="btn btn-primary">Guardar chip en la tarjeta</button>
+      </form>
+    </div>
   </div>
 
-  <div class="nfc-manual">
-    <h2>O escríbelo a mano</h2>
-    <p class="muted">Si el chip ya viene impreso en la tarjeta o lo leíste con otra app (NFC Tools muestra el UID en «OTRAS» → «Datos técnicos»), escríbelo aquí: se admiten separadores <code>:</code> o espacios.</p>
-    <form method="get" action="/admin/nfc" class="nfc-manual-form">
-      <input type="text" name="uid" value="<%= prefill %>" placeholder="04:A3:B2:C1:5B:6A:80" maxlength="64">
-      <button type="submit" class="btn">Buscar UID</button>
-    </form>
+  <!-- ============ ESCRIBIR ============ -->
+  <div class="nfxt-panel" data-nfxt-panel="escribir" hidden>
+    <p class="muted">Graba en el chip la URL pública de una ficha: al acercarla a un móvil se abrirá
+      <code>/t/…</code> y el sistema la redirige siempre al contenido actual. La escritura <strong>no cambia el
+      UID</strong>: la tarjeta seguirá identificada.</p>
+
+    <label>Escribe la URL de esta ficha
+      <select id="nfxt-write-tag">
+        <option value="" disabled selected>Elige la ficha…</option>
+        <% tags.forEach((t) => { %>
+          <option value="<%= t.slug %>" data-url="<%= base %>/t/<%= t.slug %>"><%= t.nombre %> · /t/<%= t.slug %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>O una URL personalizada
+      <input type="url" id="nfxt-write-url" placeholder="https://…">
+    </label>
+
+    <div class="nfxt-writewrap">
+      <button type="button" class="nfxt-writebtn" id="nfxt-write">✍️ ESCRIBIR EN EL CHIP</button>
+      <button type="button" class="btn" id="nfxt-erase">🧽 Borrar contenido del chip</button>
+    </div>
+    <p class="nfxt-status" id="nfxt-write-status">Elige una ficha (o escribe una URL) y pulsa ESCRIBIR con la tarjeta cerca.</p>
+    <p class="muted">«Borrar» vacía el contenido grabado (como «Erase tag» en NFC Tools); el UID y la ficha del panel quedan intactos.</p>
+  </div>
+
+  <!-- ============ Sin Web NFC (iPhone, PC, apps) ============ -->
+  <div class="nfxt-noapp" id="nfxt-nosupport" hidden>
+    <h2>Este navegador no puede usar el NFC</h2>
+    <ul id="nfxt-nosupport-list"></ul>
+    <p>Alternativa con la app <strong>NFC Tools</strong> (gratis, iPhone y Android):</p>
+    <ol>
+      <li><strong>Leer</strong>: NFC Tools → «LEER» → acerca la tarjeta → el UID aparece en «Datos técnicos». Escríbelo en la búsqueda de aquí abajo.</li>
+      <li><strong>Escribir</strong>: copia la URL de la ficha con el botón «Copiar URL» y en NFC Tools usa «ESCRIBIR» → «Añadir un registro» → «URL» → pégala → «Escribir» acercando la tarjeta.</li>
+    </ol>
+    <div class="nfxt-ioscopy">
+      <% tags.forEach((t) => { %>
+        <div class="nfxt-iosrow">
+          <span><%= t.nombre %></span>
+          <code id="nfxt-iosurl-<%= t.id %>"><%= base %>/t/<%= t.slug %></code>
+          <button type="button" class="btn btn-sm" data-copy="#nfxt-iosurl-<%= t.id %>">Copiar URL</button>
+        </div>
+      <% }) %>
+    </div>
   </div>
 </section>
 
 <section class="panel">
-  <h2>Tarjetas con chip identificado</h2>
+  <h2>O buscar un UID a mano</h2>
+  <p class="muted">Si lo leíste con otra app (NFC Tools muestra el UID en «LEER» → «Datos técnicos»), escríbelo aquí: se admiten separadores <code>:</code> o espacios.</p>
+  <form method="get" action="/admin/nfc" class="nfc-manual-form">
+    <input type="text" name="uid" value="<%= prefill %>" placeholder="04:A3:B2:C1:5B:6A:80" maxlength="64">
+    <button type="submit" class="btn">Buscar UID</button>
+  </form>
   <% if (prefillFound) { %>
     <p class="flash flash-info">
       El UID <strong><%= prefillFound.uid %></strong> <% if (prefillFound.tag) { %>pertenece a
       <a href="/admin/tags/<%= prefillFound.tag.id %>"><strong><%= prefillFound.tag.nombre %></strong></a> (<%= prefillFound.tag.modo %>).<% } else { %>no está asociado a ninguna ficha todavía.<% } %>
     </p>
   <% } %>
+</section>
+
+<section class="panel">
+  <h2>Tarjetas con chip identificado</h2>
   <% if (chips.length === 0) { %>
-    <p class="muted">Todavía no hay tarjetas con chip identificado. Lee una tarjeta con el móvil y asígnala a su ficha.</p>
+    <p class="muted">Todavía no hay tarjetas con chip identificado. Lee una tarjeta y asígnala a su ficha.</p>
   <% } else { %>
     <table class="table">
       <thead>

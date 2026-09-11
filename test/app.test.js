@@ -1192,7 +1192,7 @@ test('identificación del chip NFC: asociar, buscar en vivo, desvincular y unici
   // 1. La página existe y aparece en el menú
   const page = await get('/admin/nfc');
   assert.equal(page.statusCode, 200);
-  assert.match(page.body, /Identificar chip NFC/);
+  assert.match(page.body, /Chip NFC · NTAG213/);
   assert.match(page.body, /Leer chip NFC/);
   const csrf = getCsrf(page.body);
 

@@ -331,11 +331,12 @@ function createAdminRouter({ db, models, config, auth }) {
     const uidParam = normalizeNfcUid(req.query.uid);
     const prefillFound = uidParam && uidParam !== false ? { uid: uidParam, tag: models.getTagByNfcUid(uidParam) } : null;
     res.render('admin/nfc', {
-      title: 'Identificar chip NFC',
+      title: 'Chip NFC',
       active: 'nfc',
       chips: porUid,
       pendientes: porUid.length,
       tags: models.listAllTags(),
+      base: publicBaseUrl(req, config),
       prefill: uidParam && uidParam !== false ? uidParam : String(req.query.uid || '').slice(0, 64),
       prefillFound
     });
