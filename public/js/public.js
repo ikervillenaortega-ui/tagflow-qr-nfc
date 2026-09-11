@@ -139,11 +139,12 @@
   }
 
   function copyText(text, btn, okEl) {
+    var origLabel = btn.textContent;
     var done = function () {
       if (okEl) okEl.style.display = 'block';
       btn.textContent = '✓ Copiado';
       setTimeout(function () {
-        btn.textContent = 'Copiar';
+        btn.textContent = origLabel;
         if (okEl) okEl.style.display = 'none';
       }, 2000);
     };

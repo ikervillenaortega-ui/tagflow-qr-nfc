@@ -899,10 +899,11 @@ test('módulo Alojamiento: bloques multi-idioma, WiFi cifrado, despedida y dupli
   assert.match(pubEs.body, /https:\/\/wa\.me\/34600123456/);
   assert.match(pubEs.body, /g\.page\/r\/resena-es/);
   assert.match(pubEs.body, /data-wifi-connect/);
-  // La contraseña viaja al huésped en el atributo data-wifi (necesaria para
-  // conectar) pero NUNCA como texto visible ni en el SSID mostrado.
-  assert.match(pubEs.body, /data-wifi='/);
-  assert.ok(!pubEs.body.includes('>wifi-seguro-99<'), 'la contraseña no se muestra como texto de página');
+  // La contraseña se muestra al huésped en la tarjeta de credenciales
+  // (input readonly + botón Copiar) para pegarla en Ajustes → WiFi.
+  assert.match(pubEs.body, /value="wifi-seguro-99"/);
+  assert.match(pubEs.body, /data-copy-val="wifi-seguro-99"/);
+  assert.match(pubEs.body, /data-copy-val="Casa2B"/);
   assert.ok(!pubEs.body.includes('Casa2Bwifi'), 'el SSID no va pegado a la contraseña');
 
   // 4. Huésped inglés: su acceso y reseña, el resto en español (fallback)
